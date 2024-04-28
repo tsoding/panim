@@ -53,6 +53,7 @@ int main(void)
 
     float factor = 100.0f;
     InitWindow(16*factor, 9*factor, "Panim");
+    InitAudioDevice();
     SetTargetFPS(60);
     plug_init();
 

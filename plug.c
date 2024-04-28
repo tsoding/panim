@@ -13,9 +13,12 @@
 #define CELL_WIDTH 100.0f
 #define CELL_HEIGHT 100.0f
 #define CELL_PAD (CELL_WIDTH*0.15f)
-#define RENDER_WIDTH 1600
-#define RENDER_HEIGHT 900
-#define RENDER_FPS 30
+// #define RENDER_WIDTH 1600
+// #define RENDER_HEIGHT 900
+// #define RENDER_FPS 30
+#define RENDER_WIDTH 1920
+#define RENDER_HEIGHT 1080
+#define RENDER_FPS 60
 #define RENDER_DELTA_TIME (1.0f/RENDER_FPS)
 
 static inline float sinstep(float t)
@@ -54,6 +57,7 @@ typedef struct {
     Head head;
 
     Font font;
+    Sound plant;
 } Plug;
 
 static Plug *p = NULL;
@@ -61,18 +65,21 @@ static Plug *p = NULL;
 static void load_resources(void)
 {
     p->font = LoadFontEx("./resources/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
+    p->plant = LoadSound("./resources/sounds/plant-bomb.wav");
 }
 
 static void unload_resources(void)
 {
     UnloadFont(p->font);
+    UnloadSound(p->plant);
 }
 
 void reset_animation(void)
 {
     for (size_t i = 0; i < TAPE_COUNT; ++i) {
-        p->tape[i].from = "69";
-        p->tape[i].to   = "420";
+        p->tape[i].from = "0";
+        p->tape[i].to   = "1";
+        p->tape[i].t    = 0.0f;
     }
     p->head.t = 0.0;
     p->head.phase = HP_MOVING;
@@ -113,20 +120,21 @@ void turing_machine(float dt, float _w, float _h)
 {
     Vector2 cell_size = {CELL_WIDTH, CELL_HEIGHT};
 
-    #if 0
+    #if 1
         Color cell_color = ColorFromHSV(0, 0.0, 0.15);
         Color head_color = ColorFromHSV(200, 0.8, 0.8);
-        Color background_color = ColorFromHSV(120, 0.0, 0.95);
+        Color background_color = ColorFromHSV(120, 0.0, 0.88);
     #else
         Color cell_color = ColorFromHSV(0, 0.0, 1 - 0.15);
         Color head_color = ColorFromHSV(200, 0.8, 0.8);
-        Color background_color = ColorFromHSV(120, 0.0, 1 - 0.95);
+        Color background_color = ColorFromHSV(120, 0.0, 1 - 0.88);
     #endif
 
     ClearBackground(background_color);
 
     float t = 0.0f;
     #define HEAD_MOVING_DURATION 0.5f
+    #define HEAD_WRITING_DURATION 0.2f
     switch (p->head.phase) {
         case HP_MOVING: {
             p->head.t = (p->head.t*HEAD_MOVING_DURATION + dt)/HEAD_MOVING_DURATION;
@@ -135,12 +143,15 @@ void turing_machine(float dt, float _w, float _h)
                 p->head.phase = HP_WRITING;
 
                 p->tape[p->head.from].t = 0;
+
             }
             t = (float)p->head.from + ((float)p->head.to - (float)p->head.from)*sinstep(p->head.t);
         } break;
 
         case HP_WRITING: {
-            p->tape[p->head.from].t = (p->tape[p->head.from].t*HEAD_MOVING_DURATION + dt)/HEAD_MOVING_DURATION;
+            float t1 = p->tape[p->head.from].t;
+            p->tape[p->head.from].t = (p->tape[p->head.from].t*HEAD_WRITING_DURATION + dt)/HEAD_WRITING_DURATION;
+            float t2 = p->tape[p->head.from].t;
             if (p->tape[p->head.from].t >= 1.0) {
                 if (p->head.from + 1 >= TAPE_COUNT) {
                     p->head.phase = HP_HALT;
@@ -149,6 +160,10 @@ void turing_machine(float dt, float _w, float _h)
                     p->head.t = 0.0f;
                     p->head.phase = HP_MOVING;
                 }
+            }
+
+            if (t1 < 0.5 && t2 >= 0.5) {
+                PlaySound(p->plant);
             }
 
             t = (float)p->head.from;
@@ -232,6 +247,9 @@ void plug_update(void)
             if (IsKeyPressed(KEY_R)) {
                 SetTraceLogLevel(LOG_WARNING);
                 p->ffmpeg = ffmpeg_start_rendering(RENDER_WIDTH, RENDER_HEIGHT, RENDER_FPS);
+                reset_animation();
+            }
+            if (IsKeyPressed(KEY_SPACE)) {
                 reset_animation();
             }
             turing_machine(GetFrameTime(), GetScreenWidth(), GetScreenHeight());
