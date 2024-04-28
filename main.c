@@ -57,7 +57,7 @@ int main(void)
     plug_init();
 
     while (!WindowShouldClose()) {
-        if (IsKeyPressed(KEY_R)) {
+        if (IsKeyPressed(KEY_H)) {
             void *state = plug_pre_reload();
             reload_libplug();
             plug_post_reload(state);

@@ -24,7 +24,7 @@ bool build_plug(Nob_Cmd *cmd)
     cc(cmd);
     nob_cmd_append(cmd, "-fPIC", "-shared");
     nob_cmd_append(cmd, "-o", BUILD_DIR"/libplug.so");
-    nob_cmd_append(cmd, "plug.c");
+    nob_cmd_append(cmd, "plug.c", "ffmpeg_linux.c");
     libs(cmd);
     return nob_cmd_run_sync(*cmd);
 }
