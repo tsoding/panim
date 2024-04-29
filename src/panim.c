@@ -17,9 +17,13 @@
 #define RENDER_FPS 60
 #define RENDER_DELTA_TIME (1.0f/RENDER_FPS)
 
-void *libplug = NULL;
+// The state of Panim Engine
+static bool paused = false;
+static FFMPEG *ffmpeg = NULL;
+static RenderTexture2D screen = {0};
+static void *libplug = NULL;
 
-bool reload_libplug(const char *libplug_path)
+static bool reload_libplug(const char *libplug_path)
 {
     if (libplug != NULL) {
         dlclose(libplug);
@@ -43,6 +47,14 @@ bool reload_libplug(const char *libplug_path)
     return true;
 }
 
+static void finish_ffmpeg_rendering(void)
+{
+    ffmpeg_end_rendering(ffmpeg);
+    plug_reset();
+    ffmpeg = NULL;
+    SetTraceLogLevel(LOG_INFO);
+}
+
 int main(int argc, char **argv)
 {
     const char *program_name = nob_shift_args(&argc, &argv);
@@ -63,18 +75,13 @@ int main(int argc, char **argv)
     SetTargetFPS(60);
     plug_init();
 
-    bool pause = false;
-    FFMPEG *ffmpeg = NULL;
-    RenderTexture2D screen = LoadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
+    screen = LoadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
 
     while (!WindowShouldClose()) {
         BeginDrawing();
             if (ffmpeg) {
                 if (plug_finished()) {
-                    ffmpeg_end_rendering(ffmpeg);
-                    plug_reset();
-                    ffmpeg = NULL;
-                    SetTraceLogLevel(LOG_INFO);
+                    finish_ffmpeg_rendering();
                 } else {
                     BeginTextureMode(screen);
                     plug_update(RENDER_DELTA_TIME, RENDER_WIDTH, RENDER_HEIGHT);
@@ -82,14 +89,7 @@ int main(int argc, char **argv)
 
                     Image image = LoadImageFromTexture(screen.texture);
                     if (!ffmpeg_send_frame_flipped(ffmpeg, image.data, image.width, image.height)) {
-                        // NOTE: we don't check the result of ffmpeg_end_rendering here because we
-                        // don't care at this point: writing a frame failed, so something went completely
-                        // wrong. So let's just show to the user the "FFmpeg Failure" screen. ffmpeg_end_rendering
-                        // should log any additional errors anyway.
-                        ffmpeg_end_rendering(ffmpeg);
-                        plug_reset();
-                        ffmpeg = NULL;
-                        SetTraceLogLevel(LOG_INFO);
+                        finish_ffmpeg_rendering();
                     }
                     UnloadImage(image);
                 }
@@ -106,9 +106,11 @@ int main(int argc, char **argv)
                     }
 
                     if (IsKeyPressed(KEY_SPACE)) {
-                        pause = !pause;
+                        paused = !paused;
                     }
-                    plug_update(pause ? 0.0f : GetFrameTime(), GetScreenWidth(), GetScreenHeight());
+
+
+                    plug_update(paused ? 0.0f : GetFrameTime(), GetScreenWidth(), GetScreenHeight());
                 }
             }
         EndDrawing();
