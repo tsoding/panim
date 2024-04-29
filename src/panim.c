@@ -109,6 +109,9 @@ int main(int argc, char **argv)
                         paused = !paused;
                     }
 
+                    if (IsKeyPressed(KEY_Q)) {
+                        plug_reset();
+                    }
 
                     plug_update(paused ? 0.0f : GetFrameTime(), GetScreenWidth(), GetScreenHeight());
                 }
