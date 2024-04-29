@@ -21,47 +21,83 @@
 #define RENDER_FPS 60
 #define RENDER_DELTA_TIME (1.0f/RENDER_FPS)
 
+#if 1
+    #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
+    #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
+    #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
+#else
+    #define CELL_COLOR ColorFromHSV(0, 0.0, 1 - 0.15)
+    #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
+    #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 1 - 0.88)
+#endif
+
+
+#define HEAD_MOVING_DURATION 0.5f
+#define HEAD_WRITING_DURATION 0.2f
+
 static inline float sinstep(float t)
 {
     return (sinf(PI*t - PI*0.5) + 1)*0.5;
 }
 
+static inline float smoothstep(float t)
+{
+    return 3*t*t - 2*t*t*t;
+}
+
 typedef struct {
-    const char *from;
-    const char *to;
-    float t;
+    const char *symbol;
 } Cell;
 
 #define TAPE_COUNT 20
 
 typedef enum {
-    HP_MOVING,
-    HP_WRITING,
-    HP_HALT,
-} Head_Phase;
+    DIR_LEFT = -1,
+    DIR_RIGHT = 1,
+} Direction;
 
 typedef struct {
-    Head_Phase phase;
-    size_t from, to;
-    float t;
+    int index;
 } Head;
 
-typedef struct {
-    size_t move_to;
-    const char *write_to;
-} Instruction;
+typedef enum {
+    ACTION_MOVE,
+    ACTION_WRITE,
+} Action_Kind;
 
-static Instruction instructions[] = {
-    {.move_to = 0, .write_to = "ur"},
-    {.move_to = 1, .write_to = "mom"},
-    {.move_to = 2, .write_to = "is"},
-    {.move_to = 3, .write_to = "a"},
-    {.move_to = 4, .write_to = "nice"},
-    {.move_to = 5, .write_to = "lady"},
-    {.move_to = 6, .write_to = ":)"},
+typedef union {
+    Direction move;
+    const char *write;
+} Action_As;
+
+typedef struct {
+    Action_Kind kind;
+    Action_As as;
+} Action;
+
+static Action script[] = {
+    {.kind = ACTION_WRITE, .as = { .write = "Foo" }},
+    {.kind = ACTION_MOVE,  .as = { .move  = DIR_RIGHT }},
+    {.kind = ACTION_WRITE, .as = { .write = "Bar" }},
+    {.kind = ACTION_MOVE,  .as = { .move  = DIR_LEFT }},
+    {.kind = ACTION_WRITE, .as = { .write = "0" }},
+    {.kind = ACTION_MOVE,  .as = { .move  = DIR_RIGHT }},
+    {.kind = ACTION_WRITE, .as = { .write = "0" }},
+    {.kind = ACTION_MOVE,  .as = { .move  = DIR_RIGHT }},
+    {.kind = ACTION_WRITE, .as = { .write = "1" }},
+    {.kind = ACTION_WRITE, .as = { .write = "2" }},
+    {.kind = ACTION_WRITE, .as = { .write = "3" }},
+    {.kind = ACTION_MOVE,  .as = { .move  = DIR_RIGHT }},
+    {.kind = ACTION_WRITE, .as = { .write = "1" }},
+    {.kind = ACTION_WRITE, .as = { .write = "2" }},
+    {.kind = ACTION_WRITE, .as = { .write = "3" }},
+    {.kind = ACTION_MOVE,  .as = { .move  = DIR_RIGHT }},
+    {.kind = ACTION_WRITE, .as = { .write = "1" }},
+    {.kind = ACTION_WRITE, .as = { .write = "2" }},
+    {.kind = ACTION_WRITE, .as = { .write = "3" }},
 };
 
-#define instructions_count NOB_ARRAY_LEN(instructions)
+#define script_size NOB_ARRAY_LEN(script)
 
 typedef struct {
     size_t size;
@@ -71,6 +107,7 @@ typedef struct {
     RenderTexture2D screen;
 
     size_t ip;
+    float t;
     Cell tape[TAPE_COUNT];
     Head head;
 
@@ -95,15 +132,10 @@ static void unload_resources(void)
 void reset_animation(void)
 {
     p->ip = 0;
+    p->t = 0.0;
     for (size_t i = 0; i < TAPE_COUNT; ++i) {
-        p->tape[i].from = "0";
-        p->tape[i].to   = "1";
-        p->tape[i].t    = 0.0f;
+        p->tape[i].symbol = "0";
     }
-    p->head.t = 0.0;
-    p->head.phase = HP_MOVING;
-    p->head.from = 0;
-    p->head.to = NOB_ARRAY_GET(instructions, p->ip).move_to;
 }
 
 void plug_init(void)
@@ -135,97 +167,93 @@ void plug_post_reload(void *state)
     load_resources();
 }
 
-void turing_machine(float dt, float _w, float _h)
+void text_in_cell(Rectangle rec, const char *from_text, const char *to_text, float t)
 {
     Vector2 cell_size = {CELL_WIDTH, CELL_HEIGHT};
 
-    #if 1
-        Color cell_color = ColorFromHSV(0, 0.0, 0.15);
-        Color head_color = ColorFromHSV(200, 0.8, 0.8);
-        Color background_color = ColorFromHSV(120, 0.0, 0.88);
-    #else
-        Color cell_color = ColorFromHSV(0, 0.0, 1 - 0.15);
-        Color head_color = ColorFromHSV(200, 0.8, 0.8);
-        Color background_color = ColorFromHSV(120, 0.0, 1 - 0.88);
-    #endif
+    {
+        float font_size = FONT_SIZE*(1 - t);
+        Vector2 text_size = MeasureTextEx(p->font, from_text, font_size, 0);
+        Vector2 position = { .x = rec.x, .y = rec.y };
+        position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
+        position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
+        DrawTextEx(p->font, from_text, position, font_size, 0, ColorAlpha(BACKGROUND_COLOR, 1 - t));
+    }
 
-    ClearBackground(background_color);
+    {
+        float font_size = FONT_SIZE*t;
+        Vector2 text_size = MeasureTextEx(p->font, to_text, font_size, 0);
+        Vector2 position = { .x = rec.x, .y = rec.y };
+        position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
+        position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
+        DrawTextEx(p->font, to_text, position, font_size, 0, ColorAlpha(BACKGROUND_COLOR, t));
+    }
+}
+
+void turing_machine(float dt, float w, float h)
+{
+    ClearBackground(BACKGROUND_COLOR);
 
     float t = 0.0f;
-    #define HEAD_MOVING_DURATION 0.5f
-    #define HEAD_WRITING_DURATION 0.2f
-    switch (p->head.phase) {
-        case HP_MOVING: {
-            p->head.t = (p->head.t*HEAD_MOVING_DURATION + dt)/HEAD_MOVING_DURATION;
-            if (p->head.t >= 1.0) {
-                p->head.from = p->head.to;
-                p->head.phase = HP_WRITING;
+    if (p->ip < script_size) {
+        Action action = NOB_ARRAY_GET(script, p->ip);
+        switch (action.kind) {
+            case ACTION_MOVE: {
+                p->t = (p->t*HEAD_MOVING_DURATION + dt)/HEAD_MOVING_DURATION;
+                if (p->t >= 1.0) {
+                    p->head.index += action.as.move;
 
-                p->tape[p->head.from].t = 0;
-                p->tape[p->head.from].to = NOB_ARRAY_GET(instructions, p->ip).write_to;
-            }
-            t = (float)p->head.from + ((float)p->head.to - (float)p->head.from)*sinstep(p->head.t);
-        } break;
-
-        case HP_WRITING: {
-            float t1 = p->tape[p->head.from].t;
-            p->tape[p->head.from].t = (p->tape[p->head.from].t*HEAD_WRITING_DURATION + dt)/HEAD_WRITING_DURATION;
-            float t2 = p->tape[p->head.from].t;
-
-            if (t1 < 0.5 && t2 >= 0.5) {
-                PlaySound(p->plant);
-            }
-
-            t = (float)p->head.from;
-
-            if (p->tape[p->head.from].t >= 1.0) {
-                if (p->ip + 1 >= instructions_count) {
-                    p->head.phase = HP_HALT;
-                } else if (NOB_ARRAY_GET(instructions, p->ip).move_to >= TAPE_COUNT) {
-                    p->head.phase = HP_HALT;
-                } else {
                     p->ip += 1;
-                    p->head.to = NOB_ARRAY_GET(instructions, p->ip).move_to;
-                    p->head.t = 0.0f;
-                    p->head.phase = HP_MOVING;
+                    p->t = 0;
                 }
-            }
-        } break;
 
-        case HP_HALT: {
-            t = (float)p->head.from;
-        } break;
+                float from = (float)p->head.index;
+                float to = (float)(p->head.index + action.as.move);
+                t = Lerp(from, to, sinstep(p->t));
+            } break;
+
+            case ACTION_WRITE: {
+                float t1 = p->t;
+                p->t = (p->t*HEAD_WRITING_DURATION + dt)/HEAD_WRITING_DURATION;
+                float t2 = p->t;
+
+                if (t1 < 0.5 && t2 >= 0.5) {
+                    PlaySound(p->plant);
+                }
+
+                if (p->t >= 1.0) {
+                    assert(0 <= p->head.index);
+                    assert(p->head.index < TAPE_COUNT);
+                    p->tape[p->head.index].symbol = action.as.write;
+
+                    p->ip += 1;
+                    p->t = 0;
+                }
+
+                t = (float)p->head.index;
+            } break;
+        }
+    } else {
+        t = (float)p->head.index;
     }
 
     for (size_t i = 0; i < TAPE_COUNT; ++i) {
         Rectangle rec = {
-            .x = i*(CELL_WIDTH + CELL_PAD) + _w/2 - CELL_WIDTH/2 - t*(CELL_WIDTH + CELL_PAD),
-            .y = _h/2 - CELL_HEIGHT/2,
+            .x = i*(CELL_WIDTH + CELL_PAD) + w/2 - CELL_WIDTH/2 - t*(CELL_WIDTH + CELL_PAD),
+            .y = h/2 - CELL_HEIGHT/2,
             .width = CELL_WIDTH,
             .height = CELL_HEIGHT,
         };
-        DrawRectangleRec(rec, cell_color);
+        DrawRectangleRec(rec, CELL_COLOR);
 
-        {
-            const char *from_text = p->tape[i].from;
-            float q = (1 - p->tape[i].t);
-            float font_size = FONT_SIZE*q;
-            Vector2 text_size = MeasureTextEx(p->font, from_text, font_size, 0);
-            Vector2 position = { .x = rec.x, .y = rec.y };
-            position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
-            position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-            DrawTextEx(p->font, from_text, position, font_size, 0, ColorAlpha(background_color, q));
-        }
-
-        {
-            const char *to_text = p->tape[i].to;
-            float q = p->tape[i].t;
-            float font_size = FONT_SIZE*q;
-            Vector2 text_size = MeasureTextEx(p->font, to_text, font_size, 0);
-            Vector2 position = { .x = rec.x, .y = rec.y };
-            position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
-            position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-            DrawTextEx(p->font, to_text, position, font_size, 0, ColorAlpha(background_color, q));
+        if (
+            (size_t)p->head.index == i &&      // we are rendering the head
+            p->ip < script_size &&             // there is a currently executing instruction
+            script[p->ip].kind == ACTION_WRITE // that instruction is ACTION_WRITE
+        ) {
+            text_in_cell(rec, p->tape[i].symbol, script[p->ip].as.write, p->t);
+        } else {
+            text_in_cell(rec, p->tape[i].symbol, "", 0);
         }
     }
 
@@ -234,16 +262,16 @@ void turing_machine(float dt, float _w, float _h)
         .width = CELL_WIDTH + head_thick*3,
         .height = CELL_HEIGHT + head_thick*3,
     };
-    rec.x = _w/2 - rec.width/2;
-    rec.y = _h/2 - rec.height/2;
-    DrawRectangleLinesEx(rec, head_thick, head_color);
+    rec.x = w/2 - rec.width/2;
+    rec.y = h/2 - rec.height/2;
+    DrawRectangleLinesEx(rec, head_thick, HEAD_COLOR);
 }
 
 void plug_update(void)
 {
     BeginDrawing();
         if (p->ffmpeg) {
-            if (p->head.phase == HP_HALT) {
+            if (p->ip >= script_size) {
                 ffmpeg_end_rendering(p->ffmpeg);
                 reset_animation();
                 p->ffmpeg = NULL;
