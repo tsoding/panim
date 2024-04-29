@@ -7,4 +7,5 @@ Programming Animation Engine. Heavily inspired by (but not based on) [Manim](htt
 ```console
 $ cc -o nob nob.c
 $ ./nob
-$ ./build/panim
+$ ./build/panim ./build/libplug.so
+```
