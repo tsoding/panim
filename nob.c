@@ -30,12 +30,12 @@ bool build_plug(Nob_Cmd *cmd)
     return nob_cmd_run_sync(*cmd);
 }
 
-bool build_main(Nob_Cmd *cmd)
+bool build_panim(Nob_Cmd *cmd)
 {
     cmd->count = 0;
     cc(cmd);
-    nob_cmd_append(cmd, "-o", BUILD_DIR"/main");
-    nob_cmd_append(cmd, SRC_DIR"/main.c");
+    nob_cmd_append(cmd, "-o", BUILD_DIR"/panim");
+    nob_cmd_append(cmd, SRC_DIR"/panim.c");
     libs(cmd);
     return nob_cmd_run_sync(*cmd);
 }
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
 
     Nob_Cmd cmd = {0};
     if (!build_plug(&cmd)) return 1;
-    if (!build_main(&cmd)) return 1;
+    if (!build_panim(&cmd)) return 1;
 
     return 0;
 }
