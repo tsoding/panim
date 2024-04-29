@@ -14,6 +14,7 @@
 #define CELL_WIDTH 100.0f
 #define CELL_HEIGHT 100.0f
 #define CELL_PAD (CELL_WIDTH*0.15f)
+#define START_AT 0
 
 #if 1
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
@@ -24,7 +25,6 @@
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 1 - 0.88)
 #endif
-
 
 #define HEAD_MOVING_DURATION 0.5f
 #define HEAD_WRITING_DURATION 0.2f
@@ -58,11 +58,13 @@ typedef enum {
 
 typedef struct {
     int index;
+    const char *state;
 } Head;
 
 typedef enum {
     ACTION_MOVE,
     ACTION_WRITE,
+    ACTION_SWITCH,
     ACTION_INTRO,
     ACTION_OUTRO,
     ACTION_WAIT,
@@ -71,6 +73,7 @@ typedef enum {
 typedef union {
     Direction move;
     const char *write;
+    const char *sweetch;
     size_t intro; // index of the tape to settle on
     size_t jump;  // action to jump to
     float wait;
@@ -97,6 +100,7 @@ typedef struct {
     Tape tape;
     Arena tape_strings;
     Camera2D camera;
+    float scene_t;
 
     // Assets (reloads along with the plugin, does not change throughout the animation)
     Script script;
@@ -150,29 +154,50 @@ static void action_outro(void)
     nob_da_append(&p->script, action);
 }
 
+static void action_switch(const char *sweetch)
+{
+    Action action = {
+        .kind = ACTION_SWITCH,
+        .as = { .sweetch = sweetch },
+    };
+    nob_da_append(&p->script, action);
+}
+
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
     p->plant = LoadSound("./assets/sounds/plant-bomb.wav");
 
-    action_intro(10);
+    action_intro(START_AT);
     action_wait(0.25f);
-    action_write("Foo");
-    action_move(DIR_RIGHT);
-    action_write("Bar");
-    action_move(DIR_LEFT);
+    action_switch("Inc");
     action_write("0");
     action_move(DIR_RIGHT);
     action_write("0");
     action_move(DIR_RIGHT);
-    action_write("67");
-    action_write("68");
-    action_write("69");
+    action_write("0");
     action_move(DIR_RIGHT);
-    action_write("418");
-    action_write("419");
-    action_write("420");
+    action_write("1");
+    action_switch("Halt");
     action_wait(1.0f);
+    action_switch("");
+    action_outro();
+
+    action_wait(1.0f);
+
+    action_intro(START_AT);
+    action_wait(0.25f);
+    action_switch("Dec");
+    action_write("1");
+    action_move(DIR_RIGHT);
+    action_write("1");
+    action_move(DIR_RIGHT);
+    action_write("1");
+    action_move(DIR_RIGHT);
+    action_write("0");
+    action_switch("Halt");
+    action_wait(1.0f);
+    action_switch("");
     action_outro();
 }
 
@@ -188,14 +213,20 @@ void plug_reset(void)
     arena_reset(&p->tape_strings);
     p->tape.count = 0;
     p->head.index = 0;
+    p->head.state = arena_strdup(&p->tape_strings, "");
     p->ip = 0;
     p->t = 0.0;
 
-    char *default_symbol = arena_strdup(&p->tape_strings, "0");
+    char *zero = arena_strdup(&p->tape_strings, "0");
+    char *one = arena_strdup(&p->tape_strings, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
-        Cell cell = {.symbol = default_symbol,};
+        Cell cell = {.symbol = zero,};
         nob_da_append(&p->tape, cell);
     }
+
+    p->tape.items[START_AT + 0].symbol = one;
+    p->tape.items[START_AT + 1].symbol = one;
+    p->tape.items[START_AT + 2].symbol = one;
 }
 
 void plug_init(void)
@@ -204,8 +235,9 @@ void plug_init(void)
     assert(p != NULL);
     memset(p, 0, sizeof(*p));
     p->size = sizeof(*p);
-    plug_reset();
+
     load_assets();
+    plug_reset();
 }
 
 void *plug_pre_reload(void)
@@ -226,9 +258,9 @@ void plug_post_reload(void *state)
     load_assets();
 }
 
-void text_in_cell(Rectangle rec, const char *from_text, const char *to_text, float t)
+static void text_in_rec(Rectangle rec, const char *from_text, const char *to_text, float t, Color color)
 {
-    Vector2 cell_size = {CELL_WIDTH, CELL_HEIGHT};
+    Vector2 cell_size = {rec.width, rec.height};
 
     {
         float font_size = FONT_SIZE*(1 - t);
@@ -236,7 +268,7 @@ void text_in_cell(Rectangle rec, const char *from_text, const char *to_text, flo
         Vector2 position = { .x = rec.x, .y = rec.y };
         position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
         position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-        DrawTextEx(p->font, from_text, position, font_size, 0, ColorAlpha(BACKGROUND_COLOR, 1 - t));
+        DrawTextEx(p->font, from_text, position, font_size, 0, ColorAlpha(color, 1 - t));
     }
 
     {
@@ -245,7 +277,7 @@ void text_in_cell(Rectangle rec, const char *from_text, const char *to_text, flo
         Vector2 position = { .x = rec.x, .y = rec.y };
         position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
         position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-        DrawTextEx(p->font, to_text, position, font_size, 0, ColorAlpha(BACKGROUND_COLOR, t));
+        DrawTextEx(p->font, to_text, position, font_size, 0, ColorAlpha(color, t));
     }
 }
 
@@ -253,7 +285,7 @@ void render_tape(float w, float h, float t)
 {
     for (size_t i = 0; i < p->tape.count; ++i) {
         Rectangle rec = {
-            .x = i*(CELL_WIDTH + CELL_PAD) + w/2 - CELL_WIDTH/2 - t*(CELL_WIDTH + CELL_PAD),
+            .x = i*(CELL_WIDTH + CELL_PAD) + w/2 - CELL_WIDTH/2 - Lerp(-20.0, t, p->scene_t)*(CELL_WIDTH + CELL_PAD),
             .y = h/2 - CELL_HEIGHT/2,
             .width = CELL_WIDTH,
             .height = CELL_HEIGHT,
@@ -261,27 +293,49 @@ void render_tape(float w, float h, float t)
         DrawRectangleRec(rec, CELL_COLOR);
 
         if (
-            (size_t)p->head.index == i &&               // we are rendering the head
-            p->ip < p->script.count &&                  // there is a currently executing instruction
-            p->script.items[p->ip].kind == ACTION_WRITE // that instruction is ACTION_WRITE
+            // we are rendering the head
+            (size_t)p->head.index == i &&
+            // there is a currently executing instruction
+            p->ip < p->script.count &&
+            // the instruction is ACTION_WRITE
+            p->script.items[p->ip].kind == ACTION_WRITE
         ) {
-            text_in_cell(rec, p->tape.items[i].symbol, p->script.items[p->ip].as.write, p->t);
+            text_in_rec(rec, p->tape.items[i].symbol, p->script.items[p->ip].as.write, p->t, BACKGROUND_COLOR);
         } else {
-            text_in_cell(rec, p->tape.items[i].symbol, "", 0);
+            text_in_rec(rec, p->tape.items[i].symbol, "", 0, BACKGROUND_COLOR);
         }
     }
 }
 
-void render_head(float w, float h, float t)
+void render_head(float w, float h, float state_t)
 {
     float head_thick = 20.0;
     Rectangle rec = {
-        .width = CELL_WIDTH + head_thick*3 + (1 - t)*head_thick*3,
-        .height = CELL_HEIGHT + head_thick*3 + (1 - t)*head_thick*3,
+        .width = CELL_WIDTH + head_thick*3 + (1 - p->scene_t)*head_thick*3,
+        .height = CELL_HEIGHT + head_thick*3 + (1 - p->scene_t)*head_thick*3,
     };
     rec.x = w/2 - rec.width/2;
     rec.y = h/2 - rec.height/2;
-    DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, t));
+    DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
+
+    const char *text = p->head.state;
+    float font_size = FONT_SIZE;
+    Rectangle text_rec = {
+        .x = rec.x,
+        .y = rec.y + rec.height,
+        .width = rec.width,
+        .height = font_size*1.5,
+    };
+    if (
+        // there is a currently executing instruction
+        p->ip < p->script.count &&
+        // the instruction is ACTION_SWITCH
+        p->script.items[p->ip].kind == ACTION_SWITCH
+    ) {
+        text_in_rec(text_rec, text, p->script.items[p->ip].as.sweetch, state_t, ColorAlpha(CELL_COLOR, p->scene_t));
+    } else {
+        text_in_rec(text_rec, text, "", 0.0, ColorAlpha(CELL_COLOR, p->scene_t));
+    }
 }
 
 void plug_update(float dt, float w, float h, bool _rendering)
@@ -296,7 +350,7 @@ void plug_update(float dt, float w, float h, bool _rendering)
             case ACTION_WAIT: {
                 p->t = (p->t*action.as.wait + dt)/action.as.wait;
                 render_tape(w, h, (float)p->head.index);
-                render_head(w, h, 1.0);
+                render_head(w, h, 0.0);
 
                 if (p->t >= 1.0f) {
                     p->ip += 1;
@@ -306,8 +360,9 @@ void plug_update(float dt, float w, float h, bool _rendering)
 
             case ACTION_INTRO: {
                 p->t = (p->t*INTRO_DURATION + dt)/INTRO_DURATION;
-                render_tape(w, h, Lerp(-20.0, (float)action.as.intro, sinstep(p->t)));
-                render_head(w, h, sinstep(p->t));
+                p->scene_t = sinstep(p->t);
+                render_tape(w, h, (float)action.as.intro);
+                render_head(w, h, 0.0f);
 
                 if (p->t >= 1.0) {
                     p->head.index = action.as.intro;
@@ -318,8 +373,9 @@ void plug_update(float dt, float w, float h, bool _rendering)
 
             case ACTION_OUTRO: {
                 p->t = (p->t*INTRO_DURATION + dt)/INTRO_DURATION;
-                render_tape(w, h, Lerp((float)p->head.index, -20.0, sinstep(p->t)));
-                render_head(w, h, sinstep(1.0f - p->t));
+                p->scene_t = sinstep(1.0f - p->t);
+                render_tape(w, h, (float)p->head.index);
+                render_head(w, h, 0.0f);
 
                 if (p->t >= 1.0) {
                     p->ip += 1;
@@ -333,10 +389,24 @@ void plug_update(float dt, float w, float h, bool _rendering)
                 float from = (float)p->head.index;
                 float to = (float)(p->head.index + action.as.move);
                 render_tape(w, h, Lerp(from, to, sinstep(p->t)));
-                render_head(w, h, 1.0f);
+                render_head(w, h, 0.0f);
 
                 if (p->t >= 1.0) {
                     p->head.index += action.as.move;
+                    p->ip += 1;
+                    p->t = 0;
+                }
+            } break;
+
+            case ACTION_SWITCH: {
+                p->t = (p->t*HEAD_WRITING_DURATION + dt)/HEAD_WRITING_DURATION;
+
+                render_tape(w, h, (float)p->head.index);
+                render_head(w, h, sinstep(p->t));
+
+                if (p->t >= 1.0) {
+                    p->head.state = arena_strdup(&p->tape_strings, action.as.sweetch);
+
                     p->ip += 1;
                     p->t = 0;
                 }
@@ -352,7 +422,7 @@ void plug_update(float dt, float w, float h, bool _rendering)
                 }
 
                 render_tape(w, h, (float)p->head.index);
-                render_head(w, h, 1.0f);
+                render_head(w, h, 0.0f);
 
                 if (p->t >= 1.0) {
                     if ((size_t)p->head.index < p->tape.count) {
