@@ -284,8 +284,10 @@ void render_head(float w, float h, float t)
     DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, t));
 }
 
-void plug_update(float dt, float w, float h)
+void plug_update(float dt, float w, float h, bool _rendering)
 {
+    (void) _rendering;
+
     ClearBackground(BACKGROUND_COLOR);
 
     if (p->ip < p->script.count) {
