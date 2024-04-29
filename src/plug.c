@@ -353,9 +353,9 @@ void plug_update(float dt, float w, float h)
                 render_head(w, h, 1.0f);
 
                 if (p->t >= 1.0) {
-                    assert(0 <= p->head.index);
-                    assert((size_t)p->head.index < p->tape.count);
-                    p->tape.items[p->head.index].symbol = arena_strdup(&p->tape_strings, action.as.write);
+                    if ((size_t)p->head.index < p->tape.count) {
+                        p->tape.items[(size_t)p->head.index].symbol = arena_strdup(&p->tape_strings, action.as.write);
+                    }
 
                     p->ip += 1;
                     p->t = 0;
