@@ -25,7 +25,7 @@ bool build_plug(Nob_Cmd *cmd)
     cc(cmd);
     nob_cmd_append(cmd, "-fPIC", "-shared");
     nob_cmd_append(cmd, "-o", BUILD_DIR"/libplug.so");
-    nob_cmd_append(cmd, SRC_DIR"/plug.c", SRC_DIR"/ffmpeg_linux.c");
+    nob_cmd_append(cmd, SRC_DIR"/plug.c");
     libs(cmd);
     return nob_cmd_run_sync(*cmd);
 }
@@ -35,7 +35,7 @@ bool build_panim(Nob_Cmd *cmd)
     cmd->count = 0;
     cc(cmd);
     nob_cmd_append(cmd, "-o", BUILD_DIR"/panim");
-    nob_cmd_append(cmd, SRC_DIR"/panim.c");
+    nob_cmd_append(cmd, SRC_DIR"/panim.c", SRC_DIR"/ffmpeg_linux.c");
     libs(cmd);
     return nob_cmd_run_sync(*cmd);
 }

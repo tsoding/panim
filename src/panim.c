@@ -1,12 +1,21 @@
 #include <stdio.h>
 
 #include <raylib.h>
-#include "plug.h"
 
 #include <dlfcn.h>
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
+#include "plug.h"
+#include "ffmpeg.h"
+
+// #define RENDER_WIDTH 1600
+// #define RENDER_HEIGHT 900
+// #define RENDER_FPS 30
+#define RENDER_WIDTH 1920
+#define RENDER_HEIGHT 1080
+#define RENDER_FPS 60
+#define RENDER_DELTA_TIME (1.0f/RENDER_FPS)
 
 void *libplug = NULL;
 
@@ -22,29 +31,14 @@ bool reload_libplug(const char *libplug_path)
         return false;
     }
 
-    plug_init = dlsym(libplug, "plug_init");
-    if (plug_init == NULL) {
-        fprintf(stderr, "ERROR: %s\n", dlerror());
-        return false;
-    }
-
-    plug_pre_reload = dlsym(libplug, "plug_pre_reload");
-    if (plug_pre_reload == NULL) {
-        fprintf(stderr, "ERROR: %s\n", dlerror());
-        return false;
-    }
-
-    plug_post_reload = dlsym(libplug, "plug_post_reload");
-    if (plug_post_reload == NULL) {
-        fprintf(stderr, "ERROR: %s\n", dlerror());
-        return false;
-    }
-
-    plug_update = dlsym(libplug, "plug_update");
-    if (plug_update == NULL) {
-        fprintf(stderr, "ERROR: %s\n", dlerror());
-        return false;
-    }
+    #define PLUG(name, ...) \
+        name = dlsym(libplug, #name); \
+        if (name == NULL) { \
+            fprintf(stderr, "ERROR: %s\n", dlerror()); \
+            return false; \
+        }
+    LIST_OF_PLUGS
+    #undef PLUG
 
     return true;
 }
@@ -69,14 +63,55 @@ int main(int argc, char **argv)
     SetTargetFPS(60);
     plug_init();
 
-    while (!WindowShouldClose()) {
-        if (IsKeyPressed(KEY_H)) {
-            void *state = plug_pre_reload();
-            reload_libplug(libplug_path);
-            plug_post_reload(state);
-        }
+    bool pause = false;
+    FFMPEG *ffmpeg = NULL;
+    RenderTexture2D screen = LoadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
 
-        plug_update();
+    while (!WindowShouldClose()) {
+        BeginDrawing();
+            if (ffmpeg) {
+                if (plug_finished()) {
+                    ffmpeg_end_rendering(ffmpeg);
+                    plug_reset();
+                    ffmpeg = NULL;
+                    SetTraceLogLevel(LOG_INFO);
+                } else {
+                    BeginTextureMode(screen);
+                    plug_update(RENDER_DELTA_TIME, RENDER_WIDTH, RENDER_HEIGHT);
+                    EndTextureMode();
+
+                    Image image = LoadImageFromTexture(screen.texture);
+                    if (!ffmpeg_send_frame_flipped(ffmpeg, image.data, image.width, image.height)) {
+                        // NOTE: we don't check the result of ffmpeg_end_rendering here because we
+                        // don't care at this point: writing a frame failed, so something went completely
+                        // wrong. So let's just show to the user the "FFmpeg Failure" screen. ffmpeg_end_rendering
+                        // should log any additional errors anyway.
+                        ffmpeg_end_rendering(ffmpeg);
+                        plug_reset();
+                        ffmpeg = NULL;
+                        SetTraceLogLevel(LOG_INFO);
+                    }
+                    UnloadImage(image);
+                }
+            } else {
+                if (IsKeyPressed(KEY_R)) {
+                    SetTraceLogLevel(LOG_WARNING);
+                    ffmpeg = ffmpeg_start_rendering(RENDER_WIDTH, RENDER_HEIGHT, RENDER_FPS);
+                    plug_reset();
+                } else {
+                    if (IsKeyPressed(KEY_H)) {
+                        void *state = plug_pre_reload();
+                        reload_libplug(libplug_path);
+                        plug_post_reload(state);
+                    }
+
+                    if (IsKeyPressed(KEY_SPACE)) {
+                        pause = !pause;
+                    }
+                    plug_update(pause ? 0.0f : GetFrameTime(), GetScreenWidth(), GetScreenHeight());
+                }
+            }
+        EndDrawing();
     }
 
     CloseWindow();
