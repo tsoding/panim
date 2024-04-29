@@ -64,7 +64,8 @@ typedef enum {
     ACTION_MOVE,
     ACTION_WRITE,
     ACTION_INTRO,
-    ACTION_JUMP,
+    ACTION_OUTRO,
+    ACTION_WAIT,
 } Action_Kind;
 
 typedef union {
@@ -72,6 +73,7 @@ typedef union {
     const char *write;
     size_t intro; // index of the tape to settle on
     size_t jump;  // action to jump to
+    float wait;
 } Action_As;
 
 typedef struct {
@@ -88,7 +90,7 @@ typedef struct {
 typedef struct {
     size_t size;
 
-    // State (survives the plugin reload, reset on plug_reset)
+    // State (survives the plugin reload, resets on plug_reset)
     size_t ip;
     float t;
     Head head;
@@ -96,7 +98,7 @@ typedef struct {
     Arena tape_strings;
     Camera2D camera;
 
-    // Assets (reloads along with plugin, does not change throughout the animation)
+    // Assets (reloads along with the plugin, does not change throughout the animation)
     Script script;
     Font font;
     Sound plant;
@@ -104,7 +106,7 @@ typedef struct {
 
 static Plug *p = NULL;
 
-void action_intro(size_t intro)
+static void action_intro(size_t intro)
 {
     Action action = {
         .kind = ACTION_INTRO,
@@ -113,7 +115,7 @@ void action_intro(size_t intro)
     nob_da_append(&p->script, action);
 }
 
-void action_move(Direction move)
+static void action_move(Direction move)
 {
     Action action = {
         .kind = ACTION_MOVE,
@@ -122,11 +124,28 @@ void action_move(Direction move)
     nob_da_append(&p->script, action);
 }
 
-void action_write(const char *write)
+static void action_write(const char *write)
 {
     Action action = {
         .kind = ACTION_WRITE,
         .as = { .write = write },
+    };
+    nob_da_append(&p->script, action);
+}
+
+static void action_wait(float wait)
+{
+    Action action = {
+        .kind = ACTION_WAIT,
+        .as = { .wait = wait },
+    };
+    nob_da_append(&p->script, action);
+}
+
+static void action_outro(void)
+{
+    Action action = {
+        .kind = ACTION_OUTRO,
     };
     nob_da_append(&p->script, action);
 }
@@ -137,7 +156,7 @@ static void load_assets(void)
     p->plant = LoadSound("./assets/sounds/plant-bomb.wav");
 
     action_intro(10);
-    action_move(DIR_RIGHT);
+    action_wait(0.25f);
     action_write("Foo");
     action_move(DIR_RIGHT);
     action_write("Bar");
@@ -146,17 +165,15 @@ static void load_assets(void)
     action_move(DIR_RIGHT);
     action_write("0");
     action_move(DIR_RIGHT);
-    action_write("1");
-    action_write("2");
-    action_write("3");
+    action_write("67");
+    action_write("68");
+    action_write("69");
     action_move(DIR_RIGHT);
-    action_write("1");
-    action_write("2");
-    action_write("3");
-    action_move(DIR_RIGHT);
-    action_write("1");
-    action_write("2");
-    action_write("3");
+    action_write("418");
+    action_write("419");
+    action_write("420");
+    action_wait(1.0f);
+    action_outro();
 }
 
 static void unload_assets(void)
@@ -255,16 +272,16 @@ void render_tape(float w, float h, float t)
     }
 }
 
-void render_head(float w, float h)
+void render_head(float w, float h, float t)
 {
     float head_thick = 20.0;
     Rectangle rec = {
-        .width = CELL_WIDTH + head_thick*3,
-        .height = CELL_HEIGHT + head_thick*3,
+        .width = CELL_WIDTH + head_thick*3 + (1 - t)*head_thick*3,
+        .height = CELL_HEIGHT + head_thick*3 + (1 - t)*head_thick*3,
     };
     rec.x = w/2 - rec.width/2;
     rec.y = h/2 - rec.height/2;
-    DrawRectangleLinesEx(rec, head_thick, HEAD_COLOR);
+    DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, t));
 }
 
 void plug_update(float dt, float w, float h)
@@ -274,33 +291,53 @@ void plug_update(float dt, float w, float h)
     if (p->ip < p->script.count) {
         Action action = p->script.items[p->ip];
         switch (action.kind) {
+            case ACTION_WAIT: {
+                p->t = (p->t*action.as.wait + dt)/action.as.wait;
+                render_tape(w, h, (float)p->head.index);
+                render_head(w, h, 1.0);
+
+                if (p->t >= 1.0f) {
+                    p->ip += 1;
+                    p->t = 0;
+                }
+            } break;
+
             case ACTION_INTRO: {
                 p->t = (p->t*INTRO_DURATION + dt)/INTRO_DURATION;
+                render_tape(w, h, Lerp(-20.0, (float)action.as.intro, sinstep(p->t)));
+                render_head(w, h, sinstep(p->t));
+
                 if (p->t >= 1.0) {
                     p->head.index = action.as.intro;
                     p->ip += 1;
+                    p->t = 0;
                 }
-                render_tape(w, h, Lerp(-20.0, (float)action.as.intro, sinstep(p->t)));
-                render_head(w, h);
             } break;
 
-            case ACTION_JUMP: {
-                p->ip = action.as.jump;
+            case ACTION_OUTRO: {
+                p->t = (p->t*INTRO_DURATION + dt)/INTRO_DURATION;
+                render_tape(w, h, Lerp((float)p->head.index, -20.0, sinstep(p->t)));
+                render_head(w, h, sinstep(1.0f - p->t));
+
+                if (p->t >= 1.0) {
+                    p->ip += 1;
+                    p->t = 0;
+                }
             } break;
 
             case ACTION_MOVE: {
                 p->t = (p->t*HEAD_MOVING_DURATION + dt)/HEAD_MOVING_DURATION;
-                if (p->t >= 1.0) {
-                    p->head.index += action.as.move;
-
-                    p->ip += 1;
-                    p->t = 0;
-                }
 
                 float from = (float)p->head.index;
                 float to = (float)(p->head.index + action.as.move);
                 render_tape(w, h, Lerp(from, to, sinstep(p->t)));
-                render_head(w, h);
+                render_head(w, h, 1.0f);
+
+                if (p->t >= 1.0) {
+                    p->head.index += action.as.move;
+                    p->ip += 1;
+                    p->t = 0;
+                }
             } break;
 
             case ACTION_WRITE: {
@@ -312,6 +349,9 @@ void plug_update(float dt, float w, float h)
                     PlaySound(p->plant);
                 }
 
+                render_tape(w, h, (float)p->head.index);
+                render_head(w, h, 1.0f);
+
                 if (p->t >= 1.0) {
                     assert(0 <= p->head.index);
                     assert((size_t)p->head.index < p->tape.count);
@@ -320,14 +360,8 @@ void plug_update(float dt, float w, float h)
                     p->ip += 1;
                     p->t = 0;
                 }
-
-                render_tape(w, h, (float)p->head.index);
-                render_head(w, h);
             } break;
         }
-    } else {
-        render_tape(w, h, (float)p->head.index);
-        render_head(w, h);
     }
 }
 
