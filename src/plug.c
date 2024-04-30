@@ -165,10 +165,6 @@ static void load_assets(void)
     p->plant_wave = LoadWave("./assets/sounds/plant-bomb.wav");
     p->plant_sound = LoadSoundFromWave(p->plant_wave);
 
-    TraceLog(LOG_WARNING, "------------------------------");
-    TraceLog(LOG_WARNING, "%d", p->plant_wave.sampleSize);
-    TraceLog(LOG_WARNING, "------------------------------");
-
     // Table
     {
         table("Inc", "0", "1", DIR_RIGHT, "Halt");
