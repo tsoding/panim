@@ -9,8 +9,9 @@
 #include "nob.h"
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
+#include "env.h"
 
-#if 1
+#if 0
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
@@ -349,9 +350,11 @@ void render_head(float w, float h, float state_t)
     }
 }
 
-void plug_update(float dt, float w, float h, bool _rendering)
+void plug_update(Env env)
 {
-    (void) _rendering;
+    float dt = env.delta_time;
+    float w = env.screen_width;
+    float h = env.screen_height;
 
     ClearBackground(BACKGROUND_COLOR);
 
@@ -429,7 +432,7 @@ void plug_update(float dt, float w, float h, bool _rendering)
                 float t2 = p->t;
 
                 if (t1 < 0.5 && t2 >= 0.5) {
-                    PlaySound(p->plant);
+                    env.play_sound(p->plant);
                 }
 
                 render_tape(w, h, (float)p->head.index);

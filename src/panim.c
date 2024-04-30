@@ -55,6 +55,12 @@ static void finish_ffmpeg_rendering(void)
     SetTraceLogLevel(LOG_INFO);
 }
 
+void dummy_play_sound(Sound _sound)
+{
+    (void)_sound;
+    TraceLog(LOG_WARNING, "Animation tried to play a sound");
+}
+
 int main(int argc, char **argv)
 {
     const char *program_name = nob_shift_args(&argc, &argv);
@@ -84,7 +90,13 @@ int main(int argc, char **argv)
                     finish_ffmpeg_rendering();
                 } else {
                     BeginTextureMode(screen);
-                    plug_update(RENDER_DELTA_TIME, RENDER_WIDTH, RENDER_HEIGHT, true);
+                    plug_update(CLITERAL(Env) {
+                        .screen_width = RENDER_WIDTH,
+                        .screen_height = RENDER_HEIGHT,
+                        .delta_time = RENDER_DELTA_TIME,
+                        .rendering = true,
+                        .play_sound = dummy_play_sound,
+                    });
                     EndTextureMode();
 
                     Image image = LoadImageFromTexture(screen.texture);
@@ -113,7 +125,13 @@ int main(int argc, char **argv)
                         plug_reset();
                     }
 
-                    plug_update(paused ? 0.0f : GetFrameTime(), GetScreenWidth(), GetScreenHeight(), false);
+                    plug_update(CLITERAL(Env) {
+                        .screen_width = GetScreenWidth(),
+                        .screen_height = GetScreenHeight(),
+                        .delta_time = paused ? 0.0f : GetFrameTime(),
+                        .rendering = false,
+                        .play_sound = PlaySound,
+                    });
                 }
             }
         EndDrawing();
