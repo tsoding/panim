@@ -10,12 +10,6 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
-#define FONT_SIZE 52
-#define CELL_WIDTH 100.0f
-#define CELL_HEIGHT 100.0f
-#define CELL_PAD (CELL_WIDTH*0.15f)
-#define START_AT 0
-
 #if 1
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
@@ -26,6 +20,11 @@
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 1 - 0.88)
 #endif
 
+#define FONT_SIZE 52
+#define CELL_WIDTH 100.0f
+#define CELL_HEIGHT 100.0f
+#define CELL_PAD (CELL_WIDTH*0.15f)
+#define START_AT_CELL_INDEX 10
 #define HEAD_MOVING_DURATION 0.5f
 #define HEAD_WRITING_DURATION 0.2f
 #define INTRO_DURATION 1.0f
@@ -41,6 +40,25 @@ static inline float smoothstep(float t)
     return 3*t*t - 2*t*t*t;
 }
 
+typedef enum {
+    DIR_LEFT = -1,
+    DIR_RIGHT = 1,
+} Direction;
+
+typedef struct {
+    const char *state;
+    const char *read;
+    const char *write;
+    Direction step;
+    const char *next;
+} Rule;
+
+typedef struct {
+    Rule *items;
+    size_t count;
+    size_t capacity;
+} Table;
+
 typedef struct {
     const char *symbol;
 } Cell;
@@ -50,11 +68,6 @@ typedef struct {
     size_t count;
     size_t capacity;
 } Tape;
-
-typedef enum {
-    DIR_LEFT = -1,
-    DIR_RIGHT = 1,
-} Direction;
 
 typedef struct {
     int index;
@@ -104,63 +117,46 @@ typedef struct {
 
     // Assets (reloads along with the plugin, does not change throughout the animation)
     Script script;
+    Table table;
     Font font;
     Sound plant;
+
+    // New
+    float tape_y_offset; // State
 } Plug;
 
 static Plug *p = NULL;
 
-static void action_intro(size_t intro)
+static void action(Action_Kind kind, ...)
 {
-    Action action = {
-        .kind = ACTION_INTRO,
-        .as = { .intro = intro },
-    };
+    Action action = { .kind = kind };
+    va_list args;
+    va_start(args, kind);
+    switch (kind) {
+    case ACTION_MOVE:   action.as.move = va_arg(args, Direction);       break;
+    case ACTION_WRITE:  action.as.write = va_arg(args, const char *);   break;
+    case ACTION_SWITCH: action.as.sweetch = va_arg(args, const char *); break;
+    case ACTION_INTRO:  action.as.intro = va_arg(args, size_t);         break;
+    case ACTION_OUTRO:                                                  break;
+    case ACTION_WAIT:   action.as.wait = (float)va_arg(args, double);   break;
+    default:
+        fprintf(stderr, "UNREACHABLE\n");
+        abort();
+    }
+    va_end(args);
     nob_da_append(&p->script, action);
 }
 
-static void action_move(Direction move)
+static void table(const char *state, const char *read, const char *write, Direction step, const char *next)
 {
-    Action action = {
-        .kind = ACTION_MOVE,
-        .as = { .move = move },
+    Rule rule = {
+        .state = state,
+        .read = read,
+        .write = write,
+        .step = step,
+        .next = next,
     };
-    nob_da_append(&p->script, action);
-}
-
-static void action_write(const char *write)
-{
-    Action action = {
-        .kind = ACTION_WRITE,
-        .as = { .write = write },
-    };
-    nob_da_append(&p->script, action);
-}
-
-static void action_wait(float wait)
-{
-    Action action = {
-        .kind = ACTION_WAIT,
-        .as = { .wait = wait },
-    };
-    nob_da_append(&p->script, action);
-}
-
-static void action_outro(void)
-{
-    Action action = {
-        .kind = ACTION_OUTRO,
-    };
-    nob_da_append(&p->script, action);
-}
-
-static void action_switch(const char *sweetch)
-{
-    Action action = {
-        .kind = ACTION_SWITCH,
-        .as = { .sweetch = sweetch },
-    };
-    nob_da_append(&p->script, action);
+    nob_da_append(&p->table, rule);
 }
 
 static void load_assets(void)
@@ -168,37 +164,46 @@ static void load_assets(void)
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
     p->plant = LoadSound("./assets/sounds/plant-bomb.wav");
 
-    action_intro(START_AT);
-    action_wait(0.25f);
-    action_switch("Inc");
-    action_write("0");
-    action_move(DIR_RIGHT);
-    action_write("0");
-    action_move(DIR_RIGHT);
-    action_write("0");
-    action_move(DIR_RIGHT);
-    action_write("1");
-    action_switch("Halt");
-    action_wait(1.0f);
-    action_switch("");
-    action_outro();
+    // Table
+    {
+        table("Inc", "0", "1", DIR_RIGHT, "Halt");
+        table("Inc", "1", "0", DIR_LEFT,  "Inc");
+    }
 
-    action_wait(1.0f);
+    // Script
+    {
+        action(ACTION_INTRO, START_AT_CELL_INDEX);
+        action(ACTION_WAIT, 0.25f);
+        action(ACTION_SWITCH, "Inc");
+        action(ACTION_WRITE, "0");
+        action(ACTION_MOVE, DIR_RIGHT);
+        action(ACTION_WRITE, "0");
+        action(ACTION_MOVE, DIR_RIGHT);
+        action(ACTION_WRITE, "0");
+        action(ACTION_MOVE, DIR_RIGHT);
+        action(ACTION_WRITE, "1");
+        action(ACTION_SWITCH, "Halt");
+        action(ACTION_WAIT, 1.0f);
+        action(ACTION_SWITCH, "");
+        action(ACTION_OUTRO);
 
-    action_intro(START_AT);
-    action_wait(0.25f);
-    action_switch("Dec");
-    action_write("1");
-    action_move(DIR_RIGHT);
-    action_write("1");
-    action_move(DIR_RIGHT);
-    action_write("1");
-    action_move(DIR_RIGHT);
-    action_write("0");
-    action_switch("Halt");
-    action_wait(1.0f);
-    action_switch("");
-    action_outro();
+        action(ACTION_WAIT, 1.0f);
+
+        action(ACTION_INTRO, START_AT_CELL_INDEX);
+        action(ACTION_WAIT, 0.25f);
+        action(ACTION_SWITCH, "Dec");
+        action(ACTION_WRITE, "1");
+        action(ACTION_MOVE, DIR_RIGHT);
+        action(ACTION_WRITE, "1");
+        action(ACTION_MOVE, DIR_RIGHT);
+        action(ACTION_WRITE, "1");
+        action(ACTION_MOVE, DIR_RIGHT);
+        action(ACTION_WRITE, "0");
+        action(ACTION_SWITCH, "Halt");
+        action(ACTION_WAIT, 1.0f);
+        action(ACTION_SWITCH, "");
+        action(ACTION_OUTRO);
+    }
 }
 
 static void unload_assets(void)
@@ -206,6 +211,7 @@ static void unload_assets(void)
     UnloadFont(p->font);
     UnloadSound(p->plant);
     p->script.count = 0;
+    p->table.count = 0;
 }
 
 void plug_reset(void)
@@ -215,7 +221,8 @@ void plug_reset(void)
     p->head.index = 0;
     p->head.state = arena_strdup(&p->tape_strings, "");
     p->ip = 0;
-    p->t = 0.0;
+    p->t = 0.0f;
+    p->tape_y_offset = 0.0f;
 
     char *zero = arena_strdup(&p->tape_strings, "0");
     char *one = arena_strdup(&p->tape_strings, "1");
@@ -224,9 +231,9 @@ void plug_reset(void)
         nob_da_append(&p->tape, cell);
     }
 
-    p->tape.items[START_AT + 0].symbol = one;
-    p->tape.items[START_AT + 1].symbol = one;
-    p->tape.items[START_AT + 2].symbol = one;
+    p->tape.items[START_AT_CELL_INDEX + 0].symbol = one;
+    p->tape.items[START_AT_CELL_INDEX + 1].symbol = one;
+    p->tape.items[START_AT_CELL_INDEX + 2].symbol = one;
 }
 
 void plug_init(void)
@@ -283,12 +290,16 @@ static void text_in_rec(Rectangle rec, const char *from_text, const char *to_tex
 
 void render_tape(float w, float h, float t)
 {
+    float cell_width = CELL_WIDTH;
+    float cell_height = CELL_HEIGHT;
+    float cell_pad = CELL_PAD;
+
     for (size_t i = 0; i < p->tape.count; ++i) {
         Rectangle rec = {
-            .x = i*(CELL_WIDTH + CELL_PAD) + w/2 - CELL_WIDTH/2 - Lerp(-20.0, t, p->scene_t)*(CELL_WIDTH + CELL_PAD),
-            .y = h/2 - CELL_HEIGHT/2,
-            .width = CELL_WIDTH,
-            .height = CELL_HEIGHT,
+            .x = i*(cell_width + cell_pad) + w/2 - cell_width/2 - Lerp(-20.0, t, p->scene_t)*(cell_width + cell_pad),
+            .y = h/2 - cell_height/2 - p->tape_y_offset,
+            .width = cell_width,
+            .height = cell_height,
         };
         DrawRectangleRec(rec, CELL_COLOR);
 
@@ -315,7 +326,7 @@ void render_head(float w, float h, float state_t)
         .height = CELL_HEIGHT + head_thick*3 + (1 - p->scene_t)*head_thick*3,
     };
     rec.x = w/2 - rec.width/2;
-    rec.y = h/2 - rec.height/2;
+    rec.y = h/2 - rec.height/2 - p->tape_y_offset;
     DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
 
     const char *text = p->head.state;

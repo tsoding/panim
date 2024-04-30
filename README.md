@@ -24,3 +24,5 @@ While developing your animation dynamic library it's good to separate your thing
 
 1. Assets - things that never change throughout the animation, but reloaded when the `libplug.so` is reloaded
 2. State - things that survive the `libplug.so` reload, but are reset on `plug_reset()`.
+
+You can safely assume that string literals reside in the Assets lifetime. So if a string literal cross a "lifetime boundary" from Asset to State it has to be copied to an appropriet region of memory. Something like an arena works well here.
