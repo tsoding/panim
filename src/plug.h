@@ -4,7 +4,7 @@
 #include "env.h"
 
 #define LIST_OF_PLUGS \
-    PLUG(plug_init, void*, void)        /* Initialize the plugin */ \
+    PLUG(plug_init, void, void)         /* Initialize the plugin */ \
     PLUG(plug_pre_reload, void*, void)  /* Notify the plugin that it's about to get reloaded */ \
     PLUG(plug_post_reload, void, void*) /* Notify the plugin that it got reloaded */ \
     PLUG(plug_update, void, Env)        /* Render next frame of the animation */ \

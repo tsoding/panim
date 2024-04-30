@@ -11,7 +11,7 @@
 #include "arena.h"
 #include "env.h"
 
-#if 0
+#if 1
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
@@ -110,10 +110,9 @@ typedef struct {
     // State (survives the plugin reload, resets on plug_reset)
     size_t ip;
     float t;
+    Arena tape_strings;
     Head head;
     Tape tape;
-    Arena tape_strings;
-    Camera2D camera;
     float scene_t;
     float tape_y_offset;
 
@@ -163,6 +162,7 @@ static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
     p->plant_wave = LoadWave("./assets/sounds/plant-bomb.wav");
+    // p->plant_wave = LoadWave("./assets/sounds/key-pickup.wav");
     p->plant_sound = LoadSoundFromWave(p->plant_wave);
 
     // Table
@@ -218,14 +218,12 @@ static void unload_assets(void)
 
 void plug_reset(void)
 {
-    arena_reset(&p->tape_strings);
-    p->tape.count = 0;
-    p->head.index = 0;
-    p->head.state = arena_strdup(&p->tape_strings, "");
     p->ip = 0;
     p->t = 0.0f;
-    p->tape_y_offset = 0.0f;
-
+    arena_reset(&p->tape_strings);
+    p->head.index = 0;
+    p->head.state = arena_strdup(&p->tape_strings, "");
+    p->tape.count = 0;
     char *zero = arena_strdup(&p->tape_strings, "0");
     char *one = arena_strdup(&p->tape_strings, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
@@ -236,6 +234,9 @@ void plug_reset(void)
     p->tape.items[START_AT_CELL_INDEX + 0].symbol = one;
     p->tape.items[START_AT_CELL_INDEX + 1].symbol = one;
     p->tape.items[START_AT_CELL_INDEX + 2].symbol = one;
+    p->scene_t = 0;
+    p->tape_y_offset = 0.0f;
+
 }
 
 void plug_init(void)
@@ -383,6 +384,7 @@ void plug_update(Env env)
                     p->head.index = action.as.intro;
                     p->ip += 1;
                     p->t = 0;
+                    p->scene_t = 1;
                 }
             } break;
 
@@ -395,6 +397,7 @@ void plug_update(Env env)
                 if (p->t >= 1.0) {
                     p->ip += 1;
                     p->t = 0;
+                    p->scene_t = 0;
                 }
             } break;
 

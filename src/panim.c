@@ -10,14 +10,19 @@
 #include "plug.h"
 #include "ffmpeg.h"
 
-#define RENDER_WIDTH 1600
-#define RENDER_HEIGHT 900
-#define RENDER_FPS 30
-// #define RENDER_WIDTH 1920
-// #define RENDER_HEIGHT 1080
-// #define RENDER_FPS 60
-#define RENDER_DELTA_TIME (1.0f/RENDER_FPS)
-#define RENDER_SPF (44100/RENDER_FPS)
+// #define FFMPEG_VIDEO_WIDTH 1600
+// #define FFMPEG_VIDEO_HEIGHT 900
+// #define FFMPEG_VIDEO_FPS 30
+#define FFMPEG_VIDEO_WIDTH 1920
+#define FFMPEG_VIDEO_HEIGHT 1080
+#define FFMPEG_VIDEO_FPS 60
+#define FFMPEG_VIDEO_DELTA_TIME (1.0f/FFMPEG_VIDEO_FPS)
+#define FFMPEG_SOUND_SAMPLE_RATE 44100
+#define FFMPEG_SOUND_CHANNELS 2
+#define FFMPEG_SOUND_SAMPLE_SIZE_BITS 16
+#define FFMPEG_SOUND_SAMPLE_SIZE_BYTES (FFMPEG_SOUND_SAMPLE_SIZE_BITS/8)
+// SPF - Samples Per Frame
+#define FFMPEG_SOUND_SPF (FFMPEG_SOUND_SAMPLE_RATE/FFMPEG_VIDEO_FPS)
 
 // The state of Panim Engine
 static bool paused = false;
@@ -27,7 +32,7 @@ static RenderTexture2D screen = {0};
 static void *libplug = NULL;
 static Wave ffmpeg_wave = {0};
 static size_t ffmpeg_wave_cursor = 0;
-static uint8_t silence[RENDER_SPF*4] = {0};
+static uint8_t silence[FFMPEG_SOUND_SPF*FFMPEG_SOUND_SAMPLE_SIZE_BYTES*FFMPEG_SOUND_CHANNELS] = {0};
 
 static bool reload_libplug(const char *libplug_path)
 {
@@ -78,6 +83,19 @@ void dummy_play_sound(Sound _sound, Wave _wave)
 void ffmpeg_play_sound(Sound _sound, Wave wave)
 {
     (void)_sound;
+
+    if (
+        wave.sampleRate != FFMPEG_SOUND_SAMPLE_RATE      ||
+        wave.sampleSize != FFMPEG_SOUND_SAMPLE_SIZE_BITS ||
+        wave.channels   != FFMPEG_SOUND_CHANNELS
+    ) {
+        TraceLog(LOG_ERROR,
+                 "Animation tried to play sound with rate: %dhz, sample size: %d bits, channels: %d. "
+                 "But we only support rate: %dhz, sample size: %d bits, channels: %d for now",
+                 wave.sampleRate, wave.sampleSize, wave.channels);
+        return;
+    }
+
     ffmpeg_wave = wave;
     ffmpeg_wave_cursor = 0;
 }
@@ -109,7 +127,7 @@ int main(int argc, char **argv)
     SetExitKey(KEY_NULL);
     plug_init();
 
-    screen = LoadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
+    screen = LoadRenderTexture(FFMPEG_VIDEO_WIDTH, FFMPEG_VIDEO_HEIGHT);
 
     while (!WindowShouldClose()) {
         BeginDrawing();
@@ -119,9 +137,9 @@ int main(int argc, char **argv)
                 } else {
                     BeginTextureMode(screen);
                     plug_update(CLITERAL(Env) {
-                        .screen_width = RENDER_WIDTH,
-                        .screen_height = RENDER_HEIGHT,
-                        .delta_time = RENDER_DELTA_TIME,
+                        .screen_width = FFMPEG_VIDEO_WIDTH,
+                        .screen_height = FFMPEG_VIDEO_HEIGHT,
+                        .delta_time = FFMPEG_VIDEO_DELTA_TIME,
                         .rendering = true,
                         .play_sound = dummy_play_sound,
                     });
@@ -139,18 +157,18 @@ int main(int argc, char **argv)
                 } else {
                     BeginTextureMode(screen);
                     plug_update(CLITERAL(Env) {
-                        .screen_width = RENDER_WIDTH,
-                        .screen_height = RENDER_HEIGHT,
-                        .delta_time = RENDER_DELTA_TIME,
+                        .screen_width = FFMPEG_VIDEO_WIDTH,
+                        .screen_height = FFMPEG_VIDEO_HEIGHT,
+                        .delta_time = FFMPEG_VIDEO_DELTA_TIME,
                         .rendering = true,
                         .play_sound = ffmpeg_play_sound,
                     });
                     EndTextureMode();
 
                     size_t frame_count = ffmpeg_wave.frameCount;
-                    size_t frame_size = 4;//ffmpeg_wave.sampleSize/8*ffmpeg_wave.channels;
+                    size_t frame_size = FFMPEG_SOUND_SAMPLE_SIZE_BYTES*FFMPEG_SOUND_CHANNELS;
                     size_t frames_begin = ffmpeg_wave_cursor;
-                    size_t frames_end = ffmpeg_wave_cursor + RENDER_SPF;
+                    size_t frames_end = ffmpeg_wave_cursor + FFMPEG_SOUND_SPF;
                     if (frames_end > frame_count) {
                         frames_end = frame_count;
                     }
@@ -160,7 +178,7 @@ int main(int argc, char **argv)
                         finish_ffmpeg_audio_rendering();
                     }
                     ffmpeg_wave_cursor += frames_end - frames_begin;
-                    size_t silence_size = (RENDER_SPF - (frames_end - frames_begin))*frame_size;
+                    size_t silence_size = (FFMPEG_SOUND_SPF - (frames_end - frames_begin))*frame_size;
                     if (!ffmpeg_send_sound_samples(ffmpeg_audio, silence, silence_size)) {
                         finish_ffmpeg_audio_rendering();
                     }
@@ -168,7 +186,7 @@ int main(int argc, char **argv)
             } else {
                 if (IsKeyPressed(KEY_R)) {
                     SetTraceLogLevel(LOG_WARNING);
-                    ffmpeg_video = ffmpeg_start_rendering_video("output.mp4", RENDER_WIDTH, RENDER_HEIGHT, RENDER_FPS);
+                    ffmpeg_video = ffmpeg_start_rendering_video("output.mp4", FFMPEG_VIDEO_WIDTH, FFMPEG_VIDEO_HEIGHT, FFMPEG_VIDEO_FPS);
                     plug_reset();
                 } else if (IsKeyPressed(KEY_T)) {
                     SetTraceLogLevel(LOG_WARNING);
