@@ -6,8 +6,10 @@
 
 typedef void FFMPEG;
 
-FFMPEG *ffmpeg_start_rendering(size_t width, size_t height, size_t fps);
+FFMPEG *ffmpeg_start_rendering_video(const char *output_path, size_t width, size_t height, size_t fps);
+FFMPEG *ffmpeg_start_rendering_audio(const char *output_path);
 bool ffmpeg_send_frame_flipped(FFMPEG *ffmpeg, void *data, size_t width, size_t height);
+bool ffmpeg_send_sound_samples(FFMPEG *ffmpeg, void *data, size_t size);
 bool ffmpeg_end_rendering(FFMPEG *ffmpeg);
 
 #endif // FFMPEG_H_

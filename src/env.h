@@ -6,7 +6,7 @@ typedef struct {
     float screen_width;
     float screen_height;
     bool rendering;
-    void (*play_sound)(Sound sound);
+    void (*play_sound)(Sound sound, Wave wave);
 } Env;
 
 #endif // ENV_H_

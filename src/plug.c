@@ -115,15 +115,14 @@ typedef struct {
     Arena tape_strings;
     Camera2D camera;
     float scene_t;
+    float tape_y_offset;
 
     // Assets (reloads along with the plugin, does not change throughout the animation)
     Script script;
     Table table;
     Font font;
-    Sound plant;
-
-    // New
-    float tape_y_offset; // State
+    Sound plant_sound;
+    Wave plant_wave;
 } Plug;
 
 static Plug *p = NULL;
@@ -163,7 +162,12 @@ static void table(const char *state, const char *read, const char *write, Direct
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
-    p->plant = LoadSound("./assets/sounds/plant-bomb.wav");
+    p->plant_wave = LoadWave("./assets/sounds/plant-bomb.wav");
+    p->plant_sound = LoadSoundFromWave(p->plant_wave);
+
+    TraceLog(LOG_WARNING, "------------------------------");
+    TraceLog(LOG_WARNING, "%d", p->plant_wave.sampleSize);
+    TraceLog(LOG_WARNING, "------------------------------");
 
     // Table
     {
@@ -210,7 +214,8 @@ static void load_assets(void)
 static void unload_assets(void)
 {
     UnloadFont(p->font);
-    UnloadSound(p->plant);
+    UnloadSound(p->plant_sound);
+    UnloadWave(p->plant_wave);
     p->script.count = 0;
     p->table.count = 0;
 }
@@ -432,7 +437,7 @@ void plug_update(Env env)
                 float t2 = p->t;
 
                 if (t1 < 0.5 && t2 >= 0.5) {
-                    env.play_sound(p->plant);
+                    env.play_sound(p->plant_sound, p->plant_wave);
                 }
 
                 render_tape(w, h, (float)p->head.index);
