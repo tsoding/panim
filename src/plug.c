@@ -125,8 +125,8 @@ typedef struct {
     Script script;
     Table table;
     Font font;
-    Sound plant_sound;
-    Wave plant_wave;
+    Sound write_sound;
+    Wave write_wave;
 } Plug;
 
 static Plug *p = NULL;
@@ -167,9 +167,8 @@ static void table(const char *state, const char *read, const char *write, Direct
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
-    p->plant_wave = LoadWave("./assets/sounds/plant-bomb.wav");
-    // p->plant_wave = LoadWave("./assets/sounds/key-pickup.wav");
-    p->plant_sound = LoadSoundFromWave(p->plant_wave);
+    p->write_wave = LoadWave("./assets/sounds/plant-bomb.wav");
+    p->write_sound = LoadSoundFromWave(p->write_wave);
 
     // Table
     {
@@ -222,8 +221,8 @@ static void load_assets(void)
 static void unload_assets(void)
 {
     UnloadFont(p->font);
-    UnloadSound(p->plant_sound);
-    UnloadWave(p->plant_wave);
+    UnloadSound(p->write_sound);
+    UnloadWave(p->write_wave);
     p->script.count = 0;
     p->table.count = 0;
 }
@@ -386,7 +385,7 @@ void plug_update(Env env)
                 float t2 = p->action_t;
 
                 if (t1 < 0.5 && t2 >= 0.5) {
-                    env.play_sound(p->plant_sound, p->plant_wave);
+                    env.play_sound(p->write_sound, p->write_wave);
                 }
 
                 for (size_t i = 0; i < p->tape.count; ++i) {
@@ -515,7 +514,7 @@ void plug_update(Env env)
                 float t2 = p->action_t;
 
                 if (t1 < 0.5 && t2 >= 0.5) {
-                    env.play_sound(p->plant_sound, p->plant_wave);
+                    env.play_sound(p->write_sound, p->write_wave);
                 }
 
                 cell->t = sinstep(p->action_t);
