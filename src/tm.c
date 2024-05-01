@@ -11,7 +11,7 @@
 #include "arena.h"
 #include "env.h"
 
-#if 1
+#if 0
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
@@ -127,6 +127,7 @@ typedef struct {
     Font font;
     Sound write_sound;
     Wave write_wave;
+    Texture2D eggplant;
 } Plug;
 
 static Plug *p = NULL;
@@ -167,6 +168,7 @@ static void table(const char *state, const char *read, const char *write, Direct
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
+    p->eggplant = LoadTexture("./assets/images/eggplant.png");
     p->write_wave = LoadWave("./assets/sounds/plant-bomb.wav");
     p->write_sound = LoadSoundFromWave(p->write_wave);
 
@@ -223,6 +225,7 @@ static void unload_assets(void)
     UnloadFont(p->font);
     UnloadSound(p->write_sound);
     UnloadWave(p->write_wave);
+    UnloadTexture(p->eggplant);
     p->script.count = 0;
     p->table.count = 0;
 }
