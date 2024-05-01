@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <math.h>
 
 #include <raylib.h>
 
@@ -23,12 +24,14 @@
 #define FFMPEG_SOUND_SAMPLE_SIZE_BYTES (FFMPEG_SOUND_SAMPLE_SIZE_BITS/8)
 // SPF - Samples Per Frame
 #define FFMPEG_SOUND_SPF (FFMPEG_SOUND_SAMPLE_RATE/FFMPEG_VIDEO_FPS)
+#define RENDERING_FONT_SIZE 78
 
 // The state of Panim Engine
 static bool paused = false;
 static FFMPEG *ffmpeg_video = NULL;
 static FFMPEG *ffmpeg_audio = NULL;
 static RenderTexture2D screen = {0};
+static Font rendering_font = {0};
 static void *libplug = NULL;
 static Wave ffmpeg_wave = {0};
 static size_t ffmpeg_wave_cursor = 0;
@@ -106,6 +109,49 @@ void preview_play_sound(Sound sound, Wave _wave)
     PlaySound(sound);
 }
 
+void rendering_scene(const char *text)
+{
+    Color foreground_color = ColorFromHSV(0, 0, 0.95);
+    Color background_color = ColorFromHSV(0, 0, 0.05);
+
+    ClearBackground(background_color);
+    Vector2 text_size = MeasureTextEx(rendering_font, text, RENDERING_FONT_SIZE, 0);
+    Vector2 position = {
+        GetScreenWidth()/2 - text_size.x/2,
+        GetScreenHeight()/2 - text_size.y/2,
+    };
+    DrawTextEx(rendering_font, text, position, RENDERING_FONT_SIZE, 0, foreground_color);
+
+    float circle_radius = RENDERING_FONT_SIZE*0.2f;
+    float ball_height = GetScreenHeight()*0.03;
+    float ball_padding = GetScreenHeight()*0.02;
+    float waving_speed = 2;
+
+    {
+        Vector2 center = {
+            .x = position.x + text_size.x*0.5 - circle_radius*3,
+            .y = position.y + RENDERING_FONT_SIZE + ball_padding + ball_height*(sinf(GetTime()*waving_speed - PI/4) + 1)*0.5,
+        };
+        DrawCircleV(center, circle_radius, foreground_color);
+    }
+
+    {
+        Vector2 center = {
+            .x = position.x + text_size.x*0.5,
+            .y = position.y + RENDERING_FONT_SIZE + ball_padding + ball_height*(sinf(GetTime()*waving_speed) + 1)*0.5,
+        };
+        DrawCircleV(center, circle_radius, foreground_color);
+    }
+
+    {
+        Vector2 center = {
+            .x = position.x + text_size.x*0.5 + circle_radius*3,
+            .y = position.y + RENDERING_FONT_SIZE + ball_padding + ball_height*(sinf(GetTime()*waving_speed + PI/4) + 1)*0.5,
+        };
+        DrawCircleV(center, circle_radius, foreground_color);
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *program_name = nob_shift_args(&argc, &argv);
@@ -121,6 +167,7 @@ int main(int argc, char **argv)
     if (!reload_libplug(libplug_path)) return 1;
 
     float factor = 100.0f;
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
     InitWindow(16*factor, 9*factor, "Panim");
     InitAudioDevice();
     SetTargetFPS(60);
@@ -128,6 +175,7 @@ int main(int argc, char **argv)
     plug_init();
 
     screen = LoadRenderTexture(FFMPEG_VIDEO_WIDTH, FFMPEG_VIDEO_HEIGHT);
+    rendering_font = LoadFontEx("./assets/fonts/Vollkorn-Regular.ttf", RENDERING_FONT_SIZE, NULL, 0);
 
     while (!WindowShouldClose()) {
         BeginDrawing();
@@ -150,6 +198,8 @@ int main(int argc, char **argv)
                         finish_ffmpeg_video_rendering();
                     }
                     UnloadImage(image);
+
+                    rendering_scene("Rendering Video");
                 }
             } else if (ffmpeg_audio) {
                 if (plug_finished() || IsKeyPressed(KEY_ESCAPE)) {
@@ -182,6 +232,8 @@ int main(int argc, char **argv)
                     if (!ffmpeg_send_sound_samples(ffmpeg_audio, silence, silence_size)) {
                         finish_ffmpeg_audio_rendering();
                     }
+
+                    rendering_scene("Rendering Audio");
                 }
             } else {
                 if (IsKeyPressed(KEY_R)) {
