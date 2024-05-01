@@ -1,2 +1,2 @@
-- [ ] Sounds in rendered videos
+- [x] Sounds in rendered videos
 - [ ] Scale delta_time in preview
