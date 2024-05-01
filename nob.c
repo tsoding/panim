@@ -47,7 +47,7 @@ int main(int argc, char **argv)
     if (!nob_mkdir_if_not_exists(BUILD_DIR)) return 1;
 
     Nob_Cmd cmd = {0};
-    if (!build_plug(&cmd, SRC_DIR"/plug.c", BUILD_DIR"/libplug.so")) return 1;
+    if (!build_plug(&cmd, SRC_DIR"/tm.c", BUILD_DIR"/libtm.so")) return 1;
     if (!build_panim(&cmd)) return 1;
 
     return 0;
