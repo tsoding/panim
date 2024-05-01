@@ -49,6 +49,7 @@ int main(int argc, char **argv)
     Nob_Cmd cmd = {0};
     if (!build_plug(&cmd, SRC_DIR"/tm.c", BUILD_DIR"/libtm.so")) return 1;
     if (!build_plug(&cmd, SRC_DIR"/template.c", BUILD_DIR"/libtemplate.so")) return 1;
+    if (!build_plug(&cmd, SRC_DIR"/squares.c", BUILD_DIR"/libsquare.so")) return 1;
     if (!build_panim(&cmd)) return 1;
 
     return 0;

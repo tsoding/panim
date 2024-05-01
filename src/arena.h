@@ -65,9 +65,26 @@ void free_region(Region *r);
 void *arena_alloc(Arena *a, size_t size_bytes);
 void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);
 char *arena_strdup(Arena *a, const char *cstr);
+void *arena_memdup(Arena *a, void *data, size_t size);
 
 void arena_reset(Arena *a);
 void arena_free(Arena *a);
+
+#define ARENA_DA_INIT_CAP 256
+
+#define arena_da_append(a, da, item)                                                          \
+    do {                                                                                      \
+        if ((da)->count >= (da)->capacity) {                                                  \
+            size_t new_capacity = (da)->capacity == 0 ? ARENA_DA_INIT_CAP : (da)->capacity*2; \
+            (da)->items = arena_realloc(                                                      \
+                (a), (da)->items,                                                             \
+                (da)->capacity*sizeof(*(da)->items),                                          \
+                new_capacity*sizeof(*(da)->items));                                           \
+            (da)->capacity = new_capacity;                                                    \
+        }                                                                                     \
+                                                                                              \
+        (da)->items[(da)->count++] = (item);                                                  \
+    } while (0)
 
 #endif // ARENA_H_
 
@@ -222,6 +239,11 @@ char *arena_strdup(Arena *a, const char *cstr)
     memcpy(dup, cstr, n);
     dup[n] = '\0';
     return dup;
+}
+
+void *arena_memdup(Arena *a, void *data, size_t size)
+{
+    return memcpy(arena_alloc(a, size), data, size);
 }
 
 void arena_reset(Arena *a)
