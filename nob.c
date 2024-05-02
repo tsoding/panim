@@ -25,7 +25,7 @@ bool build_plug(Nob_Cmd *cmd, const char *source_path, const char *output_path)
     cc(cmd);
     nob_cmd_append(cmd, "-fPIC", "-shared");
     nob_cmd_append(cmd, "-o", output_path);
-    nob_cmd_append(cmd, source_path);
+    nob_cmd_append(cmd, source_path, SRC_DIR"/tasks.c");
     libs(cmd);
     return nob_cmd_run_sync(*cmd);
 }

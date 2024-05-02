@@ -10,6 +10,7 @@
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 #include "env.h"
+#include "interpolators.h"
 
 #if 0
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
@@ -30,16 +31,6 @@
 #define HEAD_WRITING_DURATION 0.2f
 #define INTRO_DURATION 1.0f
 #define TAPE_SIZE 50
-
-static inline float sinstep(float t)
-{
-    return (sinf(PI*t - PI*0.5) + 1)*0.5;
-}
-
-static inline float smoothstep(float t)
-{
-    return 3*t*t - 2*t*t*t;
-}
 
 typedef enum {
     DIR_LEFT = -1,
