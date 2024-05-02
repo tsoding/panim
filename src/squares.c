@@ -286,6 +286,82 @@ void plug_reset(void)
                         task_color(0, WHITE),
                         task_color(1, WHITE),
                         task_color(2, WHITE)));
+
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_move(1, grid_to_world(1, 1)),
+                        task_move(2, grid_to_world(0, 0)),
+                        task_move(0, grid_to_world(0, 1))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(1, RED),
+                        task_color(2, GREEN),
+                        task_color(0, BLUE)));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(1,
+                        task_move(1, grid_to_world(1, 0))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(1, WHITE),
+                        task_color(2, WHITE),
+                        task_color(0, WHITE)));
+
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_move(2, grid_to_world(1, 1)),
+                        task_move(0, grid_to_world(0, 0)),
+                        task_move(1, grid_to_world(0, 1))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(2, RED),
+                        task_color(0, GREEN),
+                        task_color(1, BLUE)));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(1,
+                        task_move(2, grid_to_world(1, 0))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(2, WHITE),
+                        task_color(0, WHITE),
+                        task_color(1, WHITE)));
+
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_move(0, grid_to_world(1, 1)),
+                        task_move(1, grid_to_world(0, 0)),
+                        task_move(2, grid_to_world(0, 1))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(0, RED),
+                        task_color(1, GREEN),
+                        task_color(2, BLUE)));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(1,
+                        task_move(0, grid_to_world(1, 0))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(0, WHITE),
+                        task_color(1, WHITE),
+                        task_color(2, WHITE)));
+
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_move(1, grid_to_world(1, 1)),
+                        task_move(2, grid_to_world(0, 0)),
+                        task_move(0, grid_to_world(0, 1))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(1, RED),
+                        task_color(2, GREEN),
+                        task_color(0, BLUE)));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(1,
+                        task_move(1, grid_to_world(1, 0))));
+    arena_da_append(&p->state_arena, &p->tasks,
+                    task_group(3,
+                        task_color(1, WHITE),
+                        task_color(2, WHITE),
+                        task_color(0, WHITE)));
 #endif
 }
 
