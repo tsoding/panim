@@ -65,56 +65,45 @@ Vector2 grid_to_world(size_t row, size_t col)
 }
 
 typedef struct {
-    size_t square_id;
+    Vector2 *value;
     float t;
     Vector2 begin, end;
     bool init;
-} Move_Data;
+} Move_V2_Data;
 
-static void task_move_reset(Env env, void *raw_data)
+static void task_move_v2_reset(Env env, void *raw_data)
 {
     (void) env;
-    Move_Data *data = raw_data;
+    Move_V2_Data *data = raw_data;
     data->t = 0.0f;
     data->init = false;
 }
 
-static bool task_move_update(Env env, void *raw_data)
+static bool task_move_v2_update(Env env, void *raw_data)
 {
-    Move_Data *data = raw_data;
+    Move_V2_Data *data = raw_data;
     if (data->t >= 1.0f) return true; // task is done
-
-    Square *square = NULL;
-    if (data->square_id < SQUARES_COUNT) {
-        square = &p->squares[data->square_id];
-    }
 
     if (!data->init) {
         // First update of the task
-        if (square) {
-            data->begin = square->position;
-        }
+        if (data->value) data->begin = *data->value;
         data->init = true;
     }
 
     data->t = (data->t*SQUARE_MOVE_DURATION + env.delta_time)/SQUARE_MOVE_DURATION;
-
-    if (square) {
-        square->position = Vector2Lerp(data->begin, data->end, smoothstep(data->t));
-    }
-
+    if (data->value) *data->value = Vector2Lerp(data->begin, data->end, smoothstep(data->t));
     return data->t >= 1.0f;
 }
 
-static Task task_move(size_t square_id, Vector2 target)
+static Task task_move_v2(Vector2 *value, Vector2 target)
 {
-    Move_Data *data = arena_alloc(&p->state_arena, sizeof(*data));
+    Move_V2_Data *data = arena_alloc(&p->state_arena, sizeof(*data));
     memset(data, 0, sizeof(*data));
-    data->square_id = square_id;
+    data->value = value;
     data->end = target;
     return (Task) {
-        .reset = task_move_reset,
-        .update = task_move_update,
+        .reset = task_move_v2_reset,
+        .update = task_move_v2_update,
         .data = data,
     };
 }
@@ -166,55 +155,44 @@ static Task task_group(size_t n, ...)
 
 typedef struct {
     float t;
-    size_t square_id;
+    Vector4 *value;
     Vector4 begin, end;
     bool init;
-} Color_Data;
+} Move_V4_Data;
 
-static void task_color_reset(Env env, void *raw_data)
+static void task_move_v4_reset(Env env, void *raw_data)
 {
     (void) env;
-    Color_Data *data = raw_data;
+    Move_V4_Data *data = raw_data;
     data->t = 0.0f;
     data->init = false;
 }
 
-static bool task_color_update(Env env, void *raw_data)
+static bool task_move_v4_update(Env env, void *raw_data)
 {
-    Color_Data *data = raw_data;
+    Move_V4_Data *data = raw_data;
     if (data->t >= 1.0f) return true;
-
-    Square *square = NULL;
-    if (data->square_id < SQUARES_COUNT) {
-        square = &p->squares[data->square_id];
-    }
 
     if (!data->init) {
         // First update of the task
-        if (square) {
-            data->begin = square->color;
-        }
+        if (data->value) data->begin = *data->value;
         data->init = true;
     }
 
     data->t = (data->t*SQUARE_COLOR_DURATION + env.delta_time)/SQUARE_COLOR_DURATION;
-
-    if (square) {
-        square->color = QuaternionLerp(data->begin, data->end, smoothstep(data->t));
-    }
-
+    if (data->value) *data->value = QuaternionLerp(data->begin, data->end, smoothstep(data->t));
     return data->t >= 1.0f;
 }
 
-static Task task_color(size_t square_id, Color target)
+static Task task_move_v4(Vector4 *value, Color target)
 {
-    Color_Data *data = arena_alloc(&p->state_arena, sizeof(*data));
+    Move_V4_Data *data = arena_alloc(&p->state_arena, sizeof(*data));
     memset(data, 0, sizeof(*data));
-    data->square_id = square_id;
+    data->value = value;
     data->end = ColorNormalize(target);
     return (Task) {
-        .reset = task_color_reset,
-        .update = task_color_update,
+        .reset = task_move_v4_reset,
+        .update = task_move_v4_update,
         .data = data,
     };
 }
@@ -240,110 +218,101 @@ void plug_reset(void)
     memset(&p->tasks, 0, sizeof(p->tasks));
     arena_reset(&p->state_arena);
 
-#if 0
-    arena_da_append(&p->state_arena, &p->tasks, task_move(0, grid_to_world(1, 1)));
-    arena_da_append(&p->state_arena, &p->tasks, task_color(0, RED));
-    arena_da_append(&p->state_arena, &p->tasks, task_move(1, grid_to_world(0, 0)));
-    arena_da_append(&p->state_arena, &p->tasks, task_color(1, GREEN));
-    arena_da_append(&p->state_arena, &p->tasks, task_move(2, grid_to_world(0, 1)));
-    arena_da_append(&p->state_arena, &p->tasks, task_color(2, BLUE));
-#else
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_move(0, grid_to_world(1, 1)),
-                        task_move(1, grid_to_world(0, 0)),
-                        task_move(2, grid_to_world(0, 1))));
+                        task_move_v2(&p->squares[0].position, grid_to_world(1, 1)),
+                        task_move_v2(&p->squares[1].position, grid_to_world(0, 0)),
+                        task_move_v2(&p->squares[2].position, grid_to_world(0, 1))));
 
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(0, RED),
-                        task_color(1, GREEN),
-                        task_color(2, BLUE)));
+                        task_move_v4(&p->squares[0].color, RED),
+                        task_move_v4(&p->squares[1].color, GREEN),
+                        task_move_v4(&p->squares[2].color, BLUE)));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(1,
-                        task_move(0, grid_to_world(1, 0))));
+                        task_move_v2(&p->squares[0].position, grid_to_world(1, 0))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(0, WHITE),
-                        task_color(1, WHITE),
-                        task_color(2, WHITE)));
+                        task_move_v4(&p->squares[0].color, WHITE),
+                        task_move_v4(&p->squares[1].color, WHITE),
+                        task_move_v4(&p->squares[2].color, WHITE)));
 
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_move(1, grid_to_world(1, 1)),
-                        task_move(2, grid_to_world(0, 0)),
-                        task_move(0, grid_to_world(0, 1))));
+                        task_move_v2(&p->squares[1].position, grid_to_world(1, 1)),
+                        task_move_v2(&p->squares[2].position, grid_to_world(0, 0)),
+                        task_move_v2(&p->squares[0].position, grid_to_world(0, 1))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(1, RED),
-                        task_color(2, GREEN),
-                        task_color(0, BLUE)));
+                        task_move_v4(&p->squares[1].color, RED),
+                        task_move_v4(&p->squares[2].color, GREEN),
+                        task_move_v4(&p->squares[0].color, BLUE)));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(1,
-                        task_move(1, grid_to_world(1, 0))));
+                        task_move_v2(&p->squares[1].position, grid_to_world(1, 0))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(1, WHITE),
-                        task_color(2, WHITE),
-                        task_color(0, WHITE)));
+                        task_move_v4(&p->squares[1].color, WHITE),
+                        task_move_v4(&p->squares[2].color, WHITE),
+                        task_move_v4(&p->squares[0].color, WHITE)));
 
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_move(2, grid_to_world(1, 1)),
-                        task_move(0, grid_to_world(0, 0)),
-                        task_move(1, grid_to_world(0, 1))));
+                        task_move_v2(&p->squares[2].position, grid_to_world(1, 1)),
+                        task_move_v2(&p->squares[0].position, grid_to_world(0, 0)),
+                        task_move_v2(&p->squares[1].position, grid_to_world(0, 1))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(2, RED),
-                        task_color(0, GREEN),
-                        task_color(1, BLUE)));
+                        task_move_v4(&p->squares[2].color, RED),
+                        task_move_v4(&p->squares[0].color, GREEN),
+                        task_move_v4(&p->squares[1].color, BLUE)));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(1,
-                        task_move(2, grid_to_world(1, 0))));
+                        task_move_v2(&p->squares[2].position, grid_to_world(1, 0))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(2, WHITE),
-                        task_color(0, WHITE),
-                        task_color(1, WHITE)));
+                        task_move_v4(&p->squares[2].color, WHITE),
+                        task_move_v4(&p->squares[0].color, WHITE),
+                        task_move_v4(&p->squares[1].color, WHITE)));
 
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_move(0, grid_to_world(1, 1)),
-                        task_move(1, grid_to_world(0, 0)),
-                        task_move(2, grid_to_world(0, 1))));
+                        task_move_v2(&p->squares[0].position, grid_to_world(1, 1)),
+                        task_move_v2(&p->squares[1].position, grid_to_world(0, 0)),
+                        task_move_v2(&p->squares[2].position, grid_to_world(0, 1))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(0, RED),
-                        task_color(1, GREEN),
-                        task_color(2, BLUE)));
+                        task_move_v4(&p->squares[0].color, RED),
+                        task_move_v4(&p->squares[1].color, GREEN),
+                        task_move_v4(&p->squares[2].color, BLUE)));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(1,
-                        task_move(0, grid_to_world(1, 0))));
+                        task_move_v2(&p->squares[0].position, grid_to_world(1, 0))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(0, WHITE),
-                        task_color(1, WHITE),
-                        task_color(2, WHITE)));
+                        task_move_v4(&p->squares[0].color, WHITE),
+                        task_move_v4(&p->squares[1].color, WHITE),
+                        task_move_v4(&p->squares[2].color, WHITE)));
 
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_move(1, grid_to_world(1, 1)),
-                        task_move(2, grid_to_world(0, 0)),
-                        task_move(0, grid_to_world(0, 1))));
+                        task_move_v2(&p->squares[1].position, grid_to_world(1, 1)),
+                        task_move_v2(&p->squares[2].position, grid_to_world(0, 0)),
+                        task_move_v2(&p->squares[0].position, grid_to_world(0, 1))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(1, RED),
-                        task_color(2, GREEN),
-                        task_color(0, BLUE)));
+                        task_move_v4(&p->squares[1].color, RED),
+                        task_move_v4(&p->squares[2].color, GREEN),
+                        task_move_v4(&p->squares[0].color, BLUE)));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(1,
-                        task_move(1, grid_to_world(1, 0))));
+                        task_move_v2(&p->squares[1].position, grid_to_world(1, 0))));
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
-                        task_color(1, WHITE),
-                        task_color(2, WHITE),
-                        task_color(0, WHITE)));
-#endif
+                        task_move_v4(&p->squares[1].color, WHITE),
+                        task_move_v4(&p->squares[2].color, WHITE),
+                        task_move_v4(&p->squares[0].color, WHITE)));
 }
 
 void plug_init(void)
