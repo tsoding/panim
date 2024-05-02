@@ -52,7 +52,6 @@ typedef struct {
     Arena state_arena;
     Tasks tasks;
     Square squares[SQUARES_COUNT];
-    Camera2D camera;
 
     size_t it;
 } Plug;
@@ -406,13 +405,13 @@ void plug_update(Env env)
 
     ClearBackground(BACKGROUND_COLOR);
 
-    memset(&p->camera, 0, sizeof(p->camera));
-    p->camera.zoom = 1.0f;
-    p->camera.target = CLITERAL(Vector2) {
+    Camera2D camera = {0};
+    camera.zoom = 1.0f;
+    camera.target = CLITERAL(Vector2) {
         -env.screen_width/2 + SQUARE_SIZE + SQUARE_PAD*0.5,
         -env.screen_height/2 + SQUARE_SIZE + SQUARE_PAD*0.5,
     };
-    BeginMode2D(p->camera);
+    BeginMode2D(camera);
     for (size_t i = 0; i < SQUARES_COUNT; ++i) {
         Rectangle boundary = p->squares[i].boundary;
         boundary.x += p->squares[i].position_offset.x;
