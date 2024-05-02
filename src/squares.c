@@ -22,13 +22,14 @@
 
 static float smoothstep(float x)
 {
+    if (x < 0.0) return 0.0;
+    if (x >= 1.0) return 1.0;
     return 3*x*x - 2*x*x*x;
 }
 
 typedef struct {
-    void (*setup)(Env, void*);
+    void (*reset)(Env, void*);
     bool (*update)(Env, void*);
-    void (*teardown)(Env, void*);
     void *data;
 } Task;
 
@@ -40,10 +41,7 @@ typedef struct {
 
 typedef struct {
     Rectangle boundary;
-    Vector2 position_offset;
-
     Vector4 color;
-    Vector4 color_offset;
 } Square;
 
 typedef struct {
@@ -66,64 +64,59 @@ Vector2 grid_to_world(size_t row, size_t col)
     return world;
 }
 
-static void task_dummy_setup(Env env, void *data)
+typedef struct {
+    size_t square_id;
+    float t;
+    Vector2 begin, end;
+    bool init;
+} Move_Data;
+
+static void task_move_reset(Env env, void *raw_data)
 {
     (void) env;
-    (void) data;
+    Move_Data *data = raw_data;
+    data->t = 0.0f;
+    data->init = false;
 }
-
-typedef struct {
-    float t;
-    size_t square_id;
-    Vector2 target;
-} Move_Data;
 
 static bool task_move_update(Env env, void *raw_data)
 {
     Move_Data *data = raw_data;
-    if (data->t >= 1.0f) return true;
+    if (data->t >= 1.0f) return true; // task is done
+
+    Square *square = NULL;
+    if (data->square_id < SQUARES_COUNT) {
+        square = &p->squares[data->square_id];
+    }
+
+    if (!data->init) {
+        // First update of the task
+        if (square) {
+            data->begin.x = square->boundary.x;
+            data->begin.y = square->boundary.y;
+        }
+        data->init = true;
+    }
 
     data->t = (data->t*SQUARE_MOVE_DURATION + env.delta_time)/SQUARE_MOVE_DURATION;
 
-    if (data->square_id < SQUARES_COUNT) {
-        Square *square = &p->squares[data->square_id];
-
-        Vector2 position = {
-            square->boundary.x,
-            square->boundary.y,
-        };
-
-        square->position_offset = Vector2Subtract(data->target, position);
-        square->position_offset = Vector2Scale(square->position_offset, smoothstep(data->t));
+    if (square) {
+        square->boundary.x = Lerp(data->begin.x, data->end.x, smoothstep(data->t));
+        square->boundary.y = Lerp(data->begin.y, data->end.y, smoothstep(data->t));
     }
 
     return data->t >= 1.0f;
 }
 
-static void task_move_teardown(Env env, void *data)
-{
-    (void) env;
-    Move_Data *move_data = data;
-    if (move_data->square_id < SQUARES_COUNT) {
-        Square *square = &p->squares[move_data->square_id];
-
-        square->boundary.x += square->position_offset.x;
-        square->boundary.y += square->position_offset.y;
-        square->position_offset.x = 0;
-        square->position_offset.y = 0;
-    }
-}
-
 static Task task_move(size_t square_id, Vector2 target)
 {
     Move_Data *data = arena_alloc(&p->state_arena, sizeof(*data));
+    memset(data, 0, sizeof(*data));
     data->square_id = square_id;
-    data->target = target;
-    data->t = 0.0;
+    data->end = target;
     return (Task) {
-        .setup = task_dummy_setup,
+        .reset = task_move_reset,
         .update = task_move_update,
-        .teardown = task_move_teardown,
         .data = data,
     };
 }
@@ -132,12 +125,12 @@ typedef struct {
     Tasks tasks;
 } Group_Data;
 
-static void task_group_setup(Env env, void *raw_data)
+static void task_group_reset(Env env, void *raw_data)
 {
     Group_Data *data = raw_data;
     for (size_t i = 0; i < data->tasks.count; ++i) {
         Task *it = &data->tasks.items[i];
-        it->setup(env, it->data);
+        it->reset(env, it->data);
     }
 }
 
@@ -154,15 +147,6 @@ static bool task_group_update(Env env, void *raw_data)
     return finished;
 }
 
-static void task_group_teardown(Env env, void *raw_data)
-{
-    Group_Data *data = raw_data;
-    for (size_t i = 0; i < data->tasks.count; ++i) {
-        Task *it = &data->tasks.items[i];
-        it->teardown(env, it->data);
-    }
-}
-
 static Task task_group(size_t n, ...)
 {
     Group_Data *data = arena_alloc(&p->state_arena, sizeof(*data));
@@ -176,9 +160,8 @@ static Task task_group(size_t n, ...)
     va_end(args);
 
     return (Task) {
-        .setup = task_group_setup,
+        .reset = task_group_reset,
         .update = task_group_update,
-        .teardown = task_group_teardown,
         .data = data,
     };
 }
@@ -186,47 +169,54 @@ static Task task_group(size_t n, ...)
 typedef struct {
     float t;
     size_t square_id;
-    Vector4 target;
+    Vector4 begin, end;
+    bool init;
 } Color_Data;
+
+static void task_color_reset(Env env, void *raw_data)
+{
+    (void) env;
+    Color_Data *data = raw_data;
+    data->t = 0.0f;
+    data->init = false;
+}
 
 static bool task_color_update(Env env, void *raw_data)
 {
     Color_Data *data = raw_data;
     if (data->t >= 1.0f) return true;
 
+    Square *square = NULL;
+    if (data->square_id < SQUARES_COUNT) {
+        square = &p->squares[data->square_id];
+    }
+
+    if (!data->init) {
+        // First update of the task
+        if (square) {
+            data->begin = square->color;
+        }
+        data->init = true;
+    }
+
     data->t = (data->t*SQUARE_COLOR_DURATION + env.delta_time)/SQUARE_COLOR_DURATION;
 
-    if (data->square_id < SQUARES_COUNT) {
-        Square *square = &p->squares[data->square_id];
-
-        square->color_offset = QuaternionSubtract(data->target, square->color);
-        square->color_offset = QuaternionScale(square->color_offset, smoothstep(data->t));
+    if (square) {
+        square->color = QuaternionLerp(data->begin, data->end, smoothstep(data->t));
     }
 
     return data->t >= 1.0f;
 }
 
-static void task_color_teardown(Env env, void *raw_data)
-{
-    (void) env;
-    Color_Data *data = raw_data;
-    if (data->square_id < SQUARES_COUNT) {
-        Square *square = &p->squares[data->square_id];
-        square->color = QuaternionAdd(square->color, square->color_offset);
-        square->color_offset = (Vector4){0};
-    }
-}
-
-static Task task_color(size_t square_id, Color rgba)
+static Task task_color(size_t square_id, Color target)
 {
     Color_Data *data = arena_alloc(&p->state_arena, sizeof(*data));
+    memset(data, 0, sizeof(*data));
     data->square_id = square_id;
-    data->target = ColorNormalize(rgba);
-    data->t = 0.0f;
+    data->end = ColorNormalize(target);
     return (Task) {
-        .setup = task_dummy_setup,
+        .reset = task_color_reset,
         .update = task_color_update,
-        .teardown = task_color_teardown,
         .data = data,
     };
 }
@@ -249,10 +239,8 @@ void plug_reset(void)
         p->squares[i].boundary.y = world.y;
         p->squares[i].boundary.width = SQUARE_SIZE;
         p->squares[i].boundary.height = SQUARE_SIZE;
-        p->squares[i].position_offset = Vector2Zero();
 
         p->squares[i].color = ColorNormalize(FOREGROUND_COLOR);
-        p->squares[i].color_offset = CLITERAL(Vector4){0};
     }
     p->it = 0;
 
@@ -272,6 +260,7 @@ void plug_reset(void)
                         task_move(0, grid_to_world(1, 1)),
                         task_move(1, grid_to_world(0, 0)),
                         task_move(2, grid_to_world(0, 1))));
+
     arena_da_append(&p->state_arena, &p->tasks,
                     task_group(3,
                         task_color(0, RED),
@@ -398,8 +387,11 @@ void plug_update(Env env)
     if (p->it < p->tasks.count) {
         Task task = p->tasks.items[p->it];
         if (task.update(env, task.data)) {
-            task.teardown(env, task.data);
             p->it += 1;
+            if (p->it < p->tasks.count) {
+                task = p->tasks.items[p->it];
+                task.reset(env, task.data);
+            }
         }
     }
 
@@ -413,11 +405,7 @@ void plug_update(Env env)
     };
     BeginMode2D(camera);
     for (size_t i = 0; i < SQUARES_COUNT; ++i) {
-        Rectangle boundary = p->squares[i].boundary;
-        boundary.x += p->squares[i].position_offset.x;
-        boundary.y += p->squares[i].position_offset.y;
-        Vector4 color = QuaternionAdd(p->squares[i].color, p->squares[i].color_offset);
-        DrawRectangleRec(boundary, ColorFromNormalized(color));
+        DrawRectangleRec(p->squares[i].boundary, ColorFromNormalized(p->squares[i].color));
     }
     EndMode2D();
 }
