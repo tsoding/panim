@@ -40,7 +40,7 @@ typedef struct {
 } Tasks;
 
 typedef struct {
-    Rectangle boundary;
+    Vector2 position;
     Vector4 color;
 } Square;
 
@@ -92,8 +92,7 @@ static bool task_move_update(Env env, void *raw_data)
     if (!data->init) {
         // First update of the task
         if (square) {
-            data->begin.x = square->boundary.x;
-            data->begin.y = square->boundary.y;
+            data->begin = square->position;
         }
         data->init = true;
     }
@@ -101,8 +100,7 @@ static bool task_move_update(Env env, void *raw_data)
     data->t = (data->t*SQUARE_MOVE_DURATION + env.delta_time)/SQUARE_MOVE_DURATION;
 
     if (square) {
-        square->boundary.x = Lerp(data->begin.x, data->end.x, smoothstep(data->t));
-        square->boundary.y = Lerp(data->begin.y, data->end.y, smoothstep(data->t));
+        square->position = Vector2Lerp(data->begin, data->end, smoothstep(data->t));
     }
 
     return data->t >= 1.0f;
@@ -234,12 +232,7 @@ static void unload_assets(void)
 void plug_reset(void)
 {
     for (size_t i = 0; i < SQUARES_COUNT; ++i) {
-        Vector2 world = grid_to_world(i/2, i%2);
-        p->squares[i].boundary.x = world.x;
-        p->squares[i].boundary.y = world.y;
-        p->squares[i].boundary.width = SQUARE_SIZE;
-        p->squares[i].boundary.height = SQUARE_SIZE;
-
+        p->squares[i].position = grid_to_world(i/2, i%2);
         p->squares[i].color = ColorNormalize(FOREGROUND_COLOR);
     }
     p->it = 0;
@@ -405,7 +398,13 @@ void plug_update(Env env)
     };
     BeginMode2D(camera);
     for (size_t i = 0; i < SQUARES_COUNT; ++i) {
-        DrawRectangleRec(p->squares[i].boundary, ColorFromNormalized(p->squares[i].color));
+        Rectangle boundary = {
+            .x = p->squares[i].position.x,
+            .y = p->squares[i].position.y,
+            .width = SQUARE_SIZE,
+            .height = SQUARE_SIZE,
+        };
+        DrawRectangleRec(boundary, ColorFromNormalized(p->squares[i].color));
     }
     EndMode2D();
 }
