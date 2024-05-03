@@ -19,39 +19,6 @@
 #define BACKGROUND_COLOR ColorFromHSV(0, 0, 0.05)
 #define FOREGROUND_COLOR ColorFromHSV(0, 0, 0.95)
 
-size_t TASK_WAIT_TAG = 0;
-
-typedef struct {
-    float t;
-    float duration;
-} Wait_Data;
-
-bool task_wait_update(Env env, void *raw_data)
-{
-    Wait_Data *data = raw_data;
-    if (data->t >= data->duration) return true;
-    data->t += env.delta_time;
-    return data->t >= data->duration;
-}
-
-void task_wait_reset(Env env, void *raw_data)
-{
-    (void) env;
-    Wait_Data *data = raw_data;
-    data->t = 0.0f;
-}
-
-Task task_wait(Arena *a, float duration)
-{
-    Wait_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->duration = duration;
-    return (Task) {
-        .tag = TASK_WAIT_TAG,
-        .data = data,
-    };
-}
-
 typedef struct {
     Vector2 position;
     Vector4 color;
@@ -83,10 +50,6 @@ static void load_assets(void)
     Arena *a = &p->asset_arena;
     arena_reset(a);
     task_vtable_rebuild(a);
-    TASK_WAIT_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = task_wait_update,
-        .reset = task_wait_reset,
-    });
 }
 
 static void unload_assets(void)
@@ -117,14 +80,12 @@ Task loading(Arena *a)
     Square *s1 = &p->squares[0];
     Square *s2 = &p->squares[1];
     Square *s3 = &p->squares[2];
-    return task_seq(a,
+    return task_repeat(a, 3, task_seq(a,
         shuffle_squares(a, s1, s2, s3),
-        task_wait(a, 1.0f),
         shuffle_squares(a, s2, s3, s1),
-        task_wait(a, 1.0f),
         shuffle_squares(a, s3, s1, s2),
         task_wait(a, 1.0f)
-    );
+    ));
 }
 
 void plug_reset(void)

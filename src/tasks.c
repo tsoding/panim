@@ -8,6 +8,8 @@ size_t TASK_MOVE_V2_TAG = 0;
 size_t TASK_MOVE_V4_TAG = 0;
 size_t TASK_SEQ_TAG = 0;
 size_t TASK_GROUP_TAG = 0;
+size_t TASK_WAIT_TAG = 0;
+size_t TASK_REPEAT_TAG = 0;
 
 void task_reset(Task task, Env env)
 {
@@ -45,6 +47,14 @@ void task_vtable_rebuild(Arena *a)
     TASK_GROUP_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = task_group_update,
         .reset = task_group_reset,
+    });
+    TASK_WAIT_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = task_wait_update,
+        .reset = task_wait_reset,
+    });
+    TASK_REPEAT_TAG = task_vtable_register(a, (Task_Funcs) {
+        .reset = task_repeat_reset,
+        .update = task_repeat_update,
     });
 }
 
@@ -203,6 +213,64 @@ Task task_seq_(Arena *a, ...)
 
     return (Task) {
         .tag = TASK_SEQ_TAG,
+        .data = data,
+    };
+}
+
+bool task_wait_update(Env env, void *raw_data)
+{
+    Wait_Data *data = raw_data;
+    if (data->t >= data->duration) return true;
+    data->t += env.delta_time;
+    return data->t >= data->duration;
+}
+
+void task_wait_reset(Env env, void *raw_data)
+{
+    (void) env;
+    Wait_Data *data = raw_data;
+    data->t = 0.0f;
+}
+
+Task task_wait(Arena *a, float duration)
+{
+    Wait_Data *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->duration = duration;
+    return (Task) {
+        .tag = TASK_WAIT_TAG,
+        .data = data,
+    };
+}
+
+void task_repeat_reset(Env env, void *raw_data)
+{
+    (void) env;
+    Repeat_Data *data = raw_data;
+    data->i = 0;
+}
+
+bool task_repeat_update(Env env, void *raw_data)
+{
+    Repeat_Data *data = raw_data;
+    if (data->i >= data->times) return true;
+
+    if (task_update(data->inner, env)) {
+        data->i += 1;
+        task_reset(data->inner, env);
+    }
+
+    return data->i >= data->times;
+}
+
+Task task_repeat(Arena *a, size_t times, Task inner)
+{
+    Repeat_Data *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->times = times;
+    data->inner = inner;
+    return (Task) {
+        .tag = TASK_REPEAT_TAG,
         .data = data,
     };
 }
