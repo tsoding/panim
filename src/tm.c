@@ -65,6 +65,7 @@ typedef struct {
 
 typedef struct {
     int index;
+    float offset;
 } Head;
 
 typedef enum {
@@ -286,15 +287,17 @@ static void text_in_rec(Rectangle rec, const char *from_text, const char *to_tex
     }
 }
 
-static void render_tape(float w, float h, float t)
+static void render_tape(float w, float h)
 {
     float cell_width = CELL_WIDTH;
     float cell_height = CELL_HEIGHT;
     float cell_pad = CELL_PAD;
 
+    float _t = (float)p->head.index + p->head.offset;
+
     for (size_t i = 0; i < p->tape.count; ++i) {
         Rectangle rec = {
-            .x = i*(cell_width + cell_pad) + w/2 - cell_width/2 - Lerp(-20.0, t, p->scene_t)*(cell_width + cell_pad),
+            .x = i*(cell_width + cell_pad) + w/2 - cell_width/2 - Lerp(-20.0, _t, p->scene_t)*(cell_width + cell_pad),
             .y = h/2 - cell_height/2 - p->tape_y_offset,
             .width = cell_width,
             .height = cell_height,
@@ -357,9 +360,6 @@ void plug_update(Env env)
                     p->tape.items[i].t = sinstep(p->action_t);
                 }
 
-                render_tape(w, h, (float)p->head.index);
-                render_head(w, h);
-
                 if (p->action_t >= 1.0f) {
                     for (size_t i = 0; i < p->tape.count; ++i) {
                         p->tape.items[i].symbol_a = p->tape.items[i].symbol_b;
@@ -377,8 +377,6 @@ void plug_update(Env env)
                 }
 
                 p->action_t = (p->action_t*action.as.wait + dt)/action.as.wait;
-                render_tape(w, h, (float)p->head.index);
-                render_head(w, h);
 
                 if (p->action_t >= 1.0f) {
                     // nothing to teardown
@@ -389,18 +387,13 @@ void plug_update(Env env)
             case ACTION_INTRO: {
                 if (!p->action_init) {
                     p->action_init = true;
-                    // nothing to setup
+                    p->head.index = action.as.intro;
                 }
 
                 p->action_t = (p->action_t*INTRO_DURATION + dt)/INTRO_DURATION;
                 p->scene_t = sinstep(p->action_t);
-                render_tape(w, h, (float)action.as.intro);
-                render_head(w, h);
 
                 if (p->action_t >= 1.0) {
-                    p->head.index = action.as.intro;
-                    p->scene_t = 1;
-
                     next_action();
                 }
             } break;
@@ -413,8 +406,6 @@ void plug_update(Env env)
 
                 p->action_t = (p->action_t*INTRO_DURATION + dt)/INTRO_DURATION;
                 p->scene_t = sinstep(1.0f - p->action_t);
-                render_tape(w, h, (float)p->head.index);
-                render_head(w, h);
 
                 if (p->action_t >= 1.0) {
                     p->scene_t = 0;
@@ -431,13 +422,11 @@ void plug_update(Env env)
 
                 p->action_t = (p->action_t*HEAD_MOVING_DURATION + dt)/HEAD_MOVING_DURATION;
 
-                float from = (float)p->head.index;
-                float to = (float)(p->head.index + action.as.move);
-                render_tape(w, h, Lerp(from, to, sinstep(p->action_t)));
-                render_head(w, h);
+                p->head.offset = Lerp(0, action.as.move, sinstep(p->action_t));
 
                 if (p->action_t >= 1.0) {
                     p->head.index += action.as.move;
+                    p->head.offset = 0.0f;
 
                     next_action();
                 }
@@ -466,9 +455,6 @@ void plug_update(Env env)
 
                 cell->t = sinstep(p->action_t);
 
-                render_tape(w, h, (float)p->head.index);
-                render_head(w, h);
-
                 if (p->action_t >= 1.0) {
                     if (cell) {
                         cell->symbol_a = cell->symbol_b;
@@ -480,6 +466,9 @@ void plug_update(Env env)
             } break;
         }
     }
+
+    render_tape(w, h);
+    render_head(w, h);
 }
 
 bool plug_finished(void)
