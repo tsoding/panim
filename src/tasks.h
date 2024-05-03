@@ -24,8 +24,8 @@ typedef struct {
 } Task_VTable;
 
 extern Task_VTable task_vtable;
-extern size_t TASK_MOVE_V2_TAG;
-extern size_t TASK_MOVE_V4_TAG;
+extern size_t TASK_MOVE_VEC2_TAG;
+extern size_t TASK_MOVE_VEC4_TAG;
 extern size_t TASK_SEQ_TAG;
 extern size_t TASK_GROUP_TAG;
 extern size_t TASK_WAIT_TAG;
@@ -47,11 +47,11 @@ typedef struct {
 
     Vector2 *value;
     Vector2 start, target;
-} Move_V2_Data;
+} Move_Vec2_Data;
 
-void task_move_v2_reset(Env env, void *raw_data);
-bool task_move_v2_update(Env env, void *raw_data);
-Task task_move_v2(Arena *a, Vector2 *value, Vector2 target, float duration);
+void task_move_vec2_reset(Env env, void *raw_data);
+bool task_move_vec2_update(Env env, void *raw_data);
+Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration);
 
 typedef struct {
     float t;
@@ -60,11 +60,11 @@ typedef struct {
 
     Vector4 *value;
     Vector4 start, target;
-} Move_V4_Data;
+} Move_Vec4_Data;
 
-void task_move_v4_reset(Env env, void *raw_data);
-bool task_move_v4_update(Env env, void *raw_data);
-Task task_move_v4(Arena *a, Vector4 *value, Color target, float duration);
+void task_move_vec4_reset(Env env, void *raw_data);
+bool task_move_vec4_update(Env env, void *raw_data);
+Task task_move_vec4(Arena *a, Vector4 *value, Color target, float duration);
 
 typedef struct {
     Tasks tasks;
