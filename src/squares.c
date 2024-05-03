@@ -19,6 +19,38 @@
 #define BACKGROUND_COLOR ColorFromHSV(0, 0, 0.05)
 #define FOREGROUND_COLOR ColorFromHSV(0, 0, 0.95)
 
+size_t TASK_WAIT_TAG = 0;
+
+typedef struct {
+    float t;
+    float duration;
+} Wait_Data;
+
+bool task_wait_update(Env env, void *raw_data)
+{
+    Wait_Data *data = raw_data;
+    if (data->t >= data->duration) return true;
+    data->t += env.delta_time;
+    return data->t >= data->duration;
+}
+
+void task_wait_reset(Env env, void *raw_data)
+{
+    (void) env;
+    Wait_Data *data = raw_data;
+    data->t = 0.0f;
+}
+
+Task task_wait(Arena *a, float duration)
+{
+    Wait_Data *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->duration = duration;
+    return (Task) {
+        .tag = TASK_WAIT_TAG,
+        .data = data,
+    };
+}
 
 typedef struct {
     Vector2 position;
@@ -29,6 +61,7 @@ typedef struct {
     size_t size;
     Font font;
     Arena state_arena;
+    Arena asset_arena;
     Square squares[SQUARES_COUNT];
     Task task;
     bool finished;
@@ -47,6 +80,13 @@ Vector2 grid(size_t row, size_t col)
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/Vollkorn-Regular.ttf", FONT_SIZE, NULL, 0);
+    Arena *a = &p->asset_arena;
+    arena_reset(a);
+    task_vtable_rebuild(a);
+    TASK_WAIT_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = task_wait_update,
+        .reset = task_wait_reset,
+    });
 }
 
 static void unload_assets(void)
@@ -79,8 +119,12 @@ Task loading(Arena *a)
     Square *s3 = &p->squares[2];
     return task_seq(a,
         shuffle_squares(a, s1, s2, s3),
+        task_wait(a, 1.0f),
         shuffle_squares(a, s2, s3, s1),
-        shuffle_squares(a, s3, s1, s2));
+        task_wait(a, 1.0f),
+        shuffle_squares(a, s3, s1, s2),
+        task_wait(a, 1.0f)
+    );
 }
 
 void plug_reset(void)
@@ -127,7 +171,7 @@ void plug_post_reload(void *state)
 
 void plug_update(Env env)
 {
-    p->finished = p->task.update(env, p->task.data);
+    p->finished = task_update(p->task, env);
 
     ClearBackground(BACKGROUND_COLOR);
 

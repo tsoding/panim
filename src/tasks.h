@@ -5,10 +5,32 @@
 #include "arena.h"
 
 typedef struct {
-    void (*reset)(Env, void*);
-    bool (*update)(Env, void*);
+    size_t tag;
     void *data;
 } Task;
+
+typedef struct {
+    void (*reset)(Env, void*);
+    bool (*update)(Env, void*);
+} Task_Funcs;
+
+void task_reset(Task task, Env env);
+bool task_update(Task task, Env env);
+
+typedef struct {
+    Task_Funcs *items;
+    size_t count;
+    size_t capacity;
+} Task_VTable;
+
+extern Task_VTable task_vtable;
+extern size_t TASK_MOVE_V2_TAG;
+extern size_t TASK_MOVE_V4_TAG;
+extern size_t TASK_SEQ_TAG;
+extern size_t TASK_GROUP_TAG;
+
+size_t task_vtable_register(Arena *a, Task_Funcs funcs);
+void task_vtable_rebuild(Arena *a);
 
 typedef struct {
     Task *items;
