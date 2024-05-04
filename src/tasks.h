@@ -4,8 +4,10 @@
 #include "env.h"
 #include "arena.h"
 
+typedef size_t Tag;
+
 typedef struct {
-    size_t tag;
+    Tag tag;
 } Task;
 
 typedef struct {
@@ -23,14 +25,14 @@ typedef struct {
 } Task_VTable;
 
 extern Task_VTable task_vtable;
-extern size_t TASK_MOVE_VEC2_TAG;
-extern size_t TASK_MOVE_VEC4_TAG;
-extern size_t TASK_SEQ_TAG;
-extern size_t TASK_GROUP_TAG;
-extern size_t TASK_WAIT_TAG;
-extern size_t TASK_REPEAT_TAG;
+extern Tag TASK_MOVE_VEC2_TAG;
+extern Tag TASK_MOVE_VEC4_TAG;
+extern Tag TASK_SEQ_TAG;
+extern Tag TASK_GROUP_TAG;
+extern Tag TASK_WAIT_TAG;
+extern Tag TASK_REPEAT_TAG;
 
-size_t task_vtable_register(Arena *a, Task_Funcs funcs);
+Tag task_vtable_register(Arena *a, Task_Funcs funcs);
 void task_vtable_rebuild(Arena *a);
 
 typedef struct {
@@ -40,7 +42,7 @@ typedef struct {
 } Tasks;
 
 typedef struct {
-    size_t tag;
+    Tag tag;
 
     float t;
     bool init;
@@ -55,7 +57,7 @@ bool task_move_vec2_update(Task *task, Env env);
 Task *task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration);
 
 typedef struct {
-    size_t tag;
+    Tag tag;
 
     float t;
     bool init;
@@ -70,7 +72,7 @@ bool task_move_vec4_update(Task *task, Env env);
 Task *task_move_vec4(Arena *a, Vector4 *value, Color target, float duration);
 
 typedef struct {
-    size_t tag;
+    Tag tag;
 
     Tasks tasks;
 } Group_Data;
@@ -81,7 +83,7 @@ Task *task_group_(Arena *a, ...);
 #define task_group(...) task_group_(__VA_ARGS__, NULL)
 
 typedef struct {
-    size_t tag;
+    Tag tag;
 
     Tasks tasks;
     size_t it;
@@ -93,7 +95,7 @@ Task *task_seq_(Arena *a, ...);
 #define task_seq(...) task_seq_(__VA_ARGS__, NULL)
 
 typedef struct {
-    size_t tag;
+    Tag tag;
 
     float t;
     float duration;
@@ -104,7 +106,7 @@ bool task_wait_update(Task *task, Env env);
 Task *task_wait(Arena *a, float duration);
 
 typedef struct {
-    size_t tag;
+    Tag tag;
 
     size_t i;
     size_t times;

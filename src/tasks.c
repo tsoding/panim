@@ -4,12 +4,12 @@
 #include "raymath.h"
 
 Task_VTable task_vtable = {0};
-size_t TASK_MOVE_VEC2_TAG = 0;
-size_t TASK_MOVE_VEC4_TAG = 0;
-size_t TASK_SEQ_TAG = 0;
-size_t TASK_GROUP_TAG = 0;
-size_t TASK_WAIT_TAG = 0;
-size_t TASK_REPEAT_TAG = 0;
+Tag TASK_MOVE_VEC2_TAG = 0;
+Tag TASK_MOVE_VEC4_TAG = 0;
+Tag TASK_SEQ_TAG = 0;
+Tag TASK_GROUP_TAG = 0;
+Tag TASK_WAIT_TAG = 0;
+Tag TASK_REPEAT_TAG = 0;
 
 void task_reset(Task *task, Env env)
 {
@@ -21,11 +21,11 @@ bool task_update(Task *task, Env env)
     return task_vtable.items[task->tag].update(task, env);
 }
 
-size_t task_vtable_register(Arena *a, Task_Funcs funcs)
+Tag task_vtable_register(Arena *a, Task_Funcs funcs)
 {
-    size_t index = task_vtable.count;
+    Tag tag = task_vtable.count;
     arena_da_append(a, &task_vtable, funcs);
-    return index;
+    return tag;
 }
 
 void task_vtable_rebuild(Arena *a)
