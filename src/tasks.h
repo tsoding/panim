@@ -10,8 +10,8 @@ typedef struct {
 } Task;
 
 typedef struct {
-    void (*reset)(Env, void*);
-    bool (*update)(Env, void*);
+    void (*reset)(void*, Env);
+    bool (*update)(void*, Env);
 } Task_Funcs;
 
 void task_reset(Task task, Env env);
@@ -49,8 +49,8 @@ typedef struct {
     Vector2 start, target;
 } Move_Vec2_Data;
 
-void task_move_vec2_reset(Env env, void *raw_data);
-bool task_move_vec2_update(Env env, void *raw_data);
+void task_move_vec2_reset(void *raw_data, Env env);
+bool task_move_vec2_update(void *raw_data, Env env);
 Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration);
 
 typedef struct {
@@ -62,16 +62,16 @@ typedef struct {
     Vector4 start, target;
 } Move_Vec4_Data;
 
-void task_move_vec4_reset(Env env, void *raw_data);
-bool task_move_vec4_update(Env env, void *raw_data);
+void task_move_vec4_reset(void *raw_data, Env env);
+bool task_move_vec4_update(void *raw_data, Env env);
 Task task_move_vec4(Arena *a, Vector4 *value, Color target, float duration);
 
 typedef struct {
     Tasks tasks;
 } Group_Data;
 
-void task_group_reset(Env env, void *raw_data);
-bool task_group_update(Env env, void *raw_data);
+void task_group_reset(void *raw_data, Env env);
+bool task_group_update(void *raw_data, Env env);
 Task task_group_(Arena *a, ...);
 #define task_group(...) task_group_(__VA_ARGS__, (Task){0})
 
@@ -80,8 +80,8 @@ typedef struct {
     size_t it;
 } Seq_Data;
 
-void task_seq_reset(Env env, void *raw_data);
-bool task_seq_update(Env env, void *raw_data);
+void task_seq_reset(void *raw_data, Env env);
+bool task_seq_update(void *raw_data, Env env);
 Task task_seq_(Arena *a, ...);
 #define task_seq(...) task_seq_(__VA_ARGS__, (Task){0})
 
@@ -90,8 +90,8 @@ typedef struct {
     float duration;
 } Wait_Data;
 
-bool task_wait_update(Env env, void *raw_data);
-void task_wait_reset(Env env, void *raw_data);
+void task_wait_reset(void *raw_data, Env env);
+bool task_wait_update(void *raw_data, Env env);
 Task task_wait(Arena *a, float duration);
 
 typedef struct {
@@ -100,8 +100,8 @@ typedef struct {
     Task inner;
 } Repeat_Data;
 
-void task_repeat_reset(Env env, void *raw_data);
-bool task_repeat_update(Env env, void *raw_data);
+void task_repeat_reset(void *raw_data, Env env);
+bool task_repeat_update(void *raw_data, Env env);
 Task task_repeat(Arena *a, size_t times, Task inner);
 
 #endif // TASKS_H_
