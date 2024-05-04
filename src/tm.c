@@ -217,6 +217,7 @@ void plug_reset(void)
 {
     p->ip = 0;
     p->action_t = 0.0f;
+    p->action_init = false;
     arena_reset(&p->tape_strings);
     p->head.index = 0;
     p->tape.count = 0;
@@ -232,7 +233,6 @@ void plug_reset(void)
     p->tape.items[START_AT_CELL_INDEX + 2] = CLITERAL(Cell) { .symbol_a = one };
     p->scene_t = 0;
     p->tape_y_offset = 0.0f;
-
 }
 
 void plug_init(void)
