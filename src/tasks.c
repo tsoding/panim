@@ -11,14 +11,14 @@ size_t TASK_GROUP_TAG = 0;
 size_t TASK_WAIT_TAG = 0;
 size_t TASK_REPEAT_TAG = 0;
 
-void task_reset(Task task, Env env)
+void task_reset(Task *task, Env env)
 {
-    task_vtable.items[task.tag].reset(task.data, env);
+    task_vtable.items[task->tag].reset(task, env);
 }
 
-bool task_update(Task task, Env env)
+bool task_update(Task *task, Env env)
 {
-    return task_vtable.items[task.tag].update(task.data, env);
+    return task_vtable.items[task->tag].update(task, env);
 }
 
 size_t task_vtable_register(Arena *a, Task_Funcs funcs)
@@ -58,17 +58,17 @@ void task_vtable_rebuild(Arena *a)
     });
 }
 
-void task_move_vec2_reset(void *raw_data, Env env)
+void task_move_vec2_reset(Task *task, Env env)
 {
     (void) env;
-    Move_Vec2_Data *data = raw_data;
+    Move_Vec2_Data *data = (void *)task;
     data->t = 0.0f;
     data->init = false;
 }
 
-bool task_move_vec2_update(void *raw_data, Env env)
+bool task_move_vec2_update(Task *task, Env env)
 {
-    Move_Vec2_Data *data = raw_data;
+    Move_Vec2_Data *data = (void*)task;
     if (data->t >= 1.0f) return true; // task is done
 
     if (!data->init) {
@@ -82,30 +82,28 @@ bool task_move_vec2_update(void *raw_data, Env env)
     return data->t >= 1.0f;
 }
 
-Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration)
+Task *task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration)
 {
     Move_Vec2_Data *data = arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
+    data->tag = TASK_MOVE_VEC2_TAG;
     data->value = value;
     data->target = target;
     data->duration = duration;
-    return (Task) {
-        .tag = TASK_MOVE_VEC2_TAG,
-        .data = data,
-    };
+    return (void*)data;
 }
 
-void task_move_vec4_reset(void *raw_data, Env env)
+void task_move_vec4_reset(Task *task, Env env)
 {
     (void) env;
-    Move_Vec4_Data *data = raw_data;
+    Move_Vec4_Data *data = (void*)task;
     data->t = 0.0f;
     data->init = false;
 }
 
-bool task_move_vec4_update(void *raw_data, Env env)
+bool task_move_vec4_update(Task *task, Env env)
 {
-    Move_Vec4_Data *data = raw_data;
+    Move_Vec4_Data *data = (void*)task;
     if (data->t >= 1.0f) return true;
 
     if (!data->init) {
@@ -119,33 +117,31 @@ bool task_move_vec4_update(void *raw_data, Env env)
     return data->t >= 1.0f;
 }
 
-Task task_move_vec4(Arena *a, Vector4 *value, Color target, float duration)
+Task *task_move_vec4(Arena *a, Vector4 *value, Color target, float duration)
 {
     Move_Vec4_Data *data = arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
+    data->tag = TASK_MOVE_VEC4_TAG;
     data->value = value;
     data->target = ColorNormalize(target);
     data->duration = duration;
-    return (Task) {
-        .tag = TASK_MOVE_VEC4_TAG,
-        .data = data,
-    };
+    return (void*)data;
 }
 
-void task_group_reset(void *raw_data, Env env)
+void task_group_reset(Task *task, Env env)
 {
-    Group_Data *data = raw_data;
+    Group_Data *data = (void*)task;
     for (size_t i = 0; i < data->tasks.count; ++i) {
         task_reset(data->tasks.items[i], env);
     }
 }
 
-bool task_group_update(void *raw_data, Env env)
+bool task_group_update(Task *task, Env env)
 {
-    Group_Data *data = raw_data;
+    Group_Data *data = (void*)task;
     bool finished = true;
     for (size_t i = 0; i < data->tasks.count; ++i) {
-        Task it = data->tasks.items[i];
+        Task *it =  data->tasks.items[i];
         if (!task_update(it, env)) {
             finished = false;
         }
@@ -153,106 +149,100 @@ bool task_group_update(void *raw_data, Env env)
     return finished;
 }
 
-Task task_group_(Arena *a, ...)
+Task *task_group_(Arena *a, ...)
 {
     Group_Data *data = arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
+    data->tag = TASK_GROUP_TAG;
 
     va_list args;
     va_start(args, a);
     for (;;) {
-        Task task = va_arg(args, Task);
-        if (task.data == NULL) break;
+        Task *task = va_arg(args, Task*);
+        if (task == NULL) break;
         arena_da_append(a, &data->tasks, task);
     }
     va_end(args);
 
-    return (Task) {
-        .tag = TASK_GROUP_TAG,
-        .data = data,
-    };
+    return (void*)data;
 }
 
-void task_seq_reset(void *raw_data, Env env)
+void task_seq_reset(Task *task, Env env)
 {
     (void) env;
-    Seq_Data *data = raw_data;
+    Seq_Data *data = (void*)task;
     for (size_t i = 0; i < data->tasks.count; ++i) {
-        Task it = data->tasks.items[i];
+        Task *it = data->tasks.items[i];
         task_reset(it, env);
     }
     data->it = 0;
 }
 
-bool task_seq_update(void *raw_data, Env env)
+bool task_seq_update(Task *task, Env env)
 {
-    Seq_Data *data = raw_data;
+    Seq_Data *data = (void*)task;
     if (data->it >= data->tasks.count) return true;
 
-    Task task = data->tasks.items[data->it];
-    if (task_update(task, env)) {
+    Task *it = data->tasks.items[data->it];
+    if (task_update(it, env)) {
         data->it += 1;
     }
 
     return data->it >= data->tasks.count;
 }
 
-Task task_seq_(Arena *a, ...)
+Task *task_seq_(Arena *a, ...)
 {
     Seq_Data *data = arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
+    data->tag = TASK_SEQ_TAG;
 
     va_list args;
     va_start(args, a);
     for (;;) {
-        Task task = va_arg(args, Task);
-        if (task.data == NULL) break;
+        Task *task = va_arg(args, Task*);
+        if (task == NULL) break;
         arena_da_append(a, &data->tasks, task);
     }
     va_end(args);
 
-    return (Task) {
-        .tag = TASK_SEQ_TAG,
-        .data = data,
-    };
+    return (void*)data;
 }
 
-bool task_wait_update(void *raw_data, Env env)
+bool task_wait_update(Task *task, Env env)
 {
-    Wait_Data *data = raw_data;
+    Wait_Data *data = (void*)task;
     if (data->t >= data->duration) return true;
     data->t += env.delta_time;
     return data->t >= data->duration;
 }
 
-void task_wait_reset(void *raw_data, Env env)
+void task_wait_reset(Task *task, Env env)
 {
     (void) env;
-    Wait_Data *data = raw_data;
+    Wait_Data *data = (void*)task;
     data->t = 0.0f;
 }
 
-Task task_wait(Arena *a, float duration)
+Task *task_wait(Arena *a, float duration)
 {
     Wait_Data *data = arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
+    data->tag = TASK_WAIT_TAG;
     data->duration = duration;
-    return (Task) {
-        .tag = TASK_WAIT_TAG,
-        .data = data,
-    };
+    return (void*)data;
 }
 
-void task_repeat_reset(void *raw_data, Env env)
+void task_repeat_reset(Task *task, Env env)
 {
     (void) env;
-    Repeat_Data *data = raw_data;
+    Repeat_Data *data = (void*)task;
     data->i = 0;
 }
 
-bool task_repeat_update(void *raw_data, Env env)
+bool task_repeat_update(Task *task, Env env)
 {
-    Repeat_Data *data = raw_data;
+    Repeat_Data *data = (void*)task;
     if (data->i >= data->times) return true;
 
     if (task_update(data->inner, env)) {
@@ -263,14 +253,12 @@ bool task_repeat_update(void *raw_data, Env env)
     return data->i >= data->times;
 }
 
-Task task_repeat(Arena *a, size_t times, Task inner)
+Task *task_repeat(Arena *a, size_t times, Task *inner)
 {
     Repeat_Data *data = arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
+    data->tag = TASK_REPEAT_TAG;
     data->times = times;
     data->inner = inner;
-    return (Task) {
-        .tag = TASK_REPEAT_TAG,
-        .data = data,
-    };
+    return (void*)data;
 }
