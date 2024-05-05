@@ -65,15 +65,13 @@ Move_Scalar_Data move_scalar_data(float *value, float target, float duration);
 Task task_move_scalar(Arena *a, float *value, float target, float duration);
 
 typedef struct {
-    float t;
-    bool init;
-    float duration;
-
+    Wait_Data wait;
     Vector2 *value;
     Vector2 start, target;
 } Move_Vec2_Data;
 
-bool task_move_vec2_update(Move_Vec2_Data *data, Env env);
+bool move_vec2_update(Move_Vec2_Data *data, Env env);
+Move_Vec2_Data move_vec2_data(Vector2 *value, Vector2 target, float duration);
 Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration);
 
 typedef struct {
