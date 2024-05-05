@@ -65,14 +65,14 @@ Task shuffle_squares(Arena *a, Square *s1, Square *s2, Square *s3)
             task_move_vec2(a, &s2->position, grid(0, 0), 0.25),
             task_move_vec2(a, &s3->position, grid(0, 1), 0.25)),
         task_group(a,
-            task_move_vec4(a, &s1->color, RED, 0.25),
-            task_move_vec4(a, &s2->color, GREEN, 0.25),
-            task_move_vec4(a, &s3->color, BLUE, 0.25)),
+            task_move_vec4(a, &s1->color, ColorNormalize(RED), 0.25),
+            task_move_vec4(a, &s2->color, ColorNormalize(GREEN), 0.25),
+            task_move_vec4(a, &s3->color, ColorNormalize(BLUE), 0.25)),
         task_move_vec2(a, &s1->position, grid(1, 0), 0.25),
         task_group(a,
-            task_move_vec4(a, &s1->color, FOREGROUND_COLOR, 0.25),
-            task_move_vec4(a, &s2->color, FOREGROUND_COLOR, 0.25),
-            task_move_vec4(a, &s3->color, FOREGROUND_COLOR, 0.25)));
+            task_move_vec4(a, &s1->color, ColorNormalize(FOREGROUND_COLOR), 0.25),
+            task_move_vec4(a, &s2->color, ColorNormalize(FOREGROUND_COLOR), 0.25),
+            task_move_vec4(a, &s3->color, ColorNormalize(FOREGROUND_COLOR), 0.25)));
 }
 
 Task loading(Arena *a)

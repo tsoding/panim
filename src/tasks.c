@@ -37,7 +37,7 @@ void task_vtable_rebuild(Arena *a)
         .update = (task_update_data_t)move_vec2_update,
     });
     TASK_MOVE_VEC4_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)task_move_vec4_update,
+        .update = (task_update_data_t)move_vec4_update,
     });
     TASK_SEQ_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)task_seq_update,
@@ -158,31 +158,41 @@ Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration)
     };
 }
 
-bool task_move_vec4_update(Move_Vec4_Data *data, Env env)
+bool move_vec4_update(Move_Vec4_Data *data, Env env)
 {
-    if (data->t >= 1.0f) return true;
+    if (wait_done(&data->wait)) return true;
 
-    if (!data->init) {
-        // First update of the task
-        if (data->value) data->start = *data->value;
-        data->init = true;
+    if (!data->wait.started && data->value) {
+        data->start = *data->value;
     }
 
-    data->t = (data->t*data->duration + env.delta_time)/data->duration;
-    if (data->value) *data->value = QuaternionLerp(data->start, data->target, smoothstep(data->t));
-    return data->t >= 1.0f;
+    bool finished = wait_update(&data->wait, env);
+
+    if (data->value) {
+        *data->value = QuaternionLerp(
+            data->start,
+            data->target,
+            smoothstep(wait_norm(&data->wait)));
+    }
+
+    return finished;
 }
 
-Task task_move_vec4(Arena *a, Vector4 *value, Color target, float duration)
+Move_Vec4_Data move_vec4_data(Vector4 *value, Vector4 target, float duration)
 {
-    Move_Vec4_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->value = value;
-    data->target = ColorNormalize(target);
-    data->duration = duration;
+    return (Move_Vec4_Data) {
+        .wait = wait_data(duration),
+        .value = value,
+        .target = target,
+    };
+}
+
+Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration)
+{
+    Move_Vec4_Data data = move_vec4_data(value, target, duration);
     return (Task) {
         .tag = TASK_MOVE_VEC4_TAG,
-        .data = data,
+        .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
 

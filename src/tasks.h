@@ -75,16 +75,14 @@ Move_Vec2_Data move_vec2_data(Vector2 *value, Vector2 target, float duration);
 Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration);
 
 typedef struct {
-    float t;
-    bool init;
-    float duration;
-
+    Wait_Data wait;
     Vector4 *value;
     Vector4 start, target;
 } Move_Vec4_Data;
 
-bool task_move_vec4_update(Move_Vec4_Data *data, Env env);
-Task task_move_vec4(Arena *a, Vector4 *value, Color target, float duration);
+bool move_vec4_update(Move_Vec4_Data *data, Env env);
+Move_Vec4_Data move_vec4_data(Vector4 *value, Vector4 target, float duration);
+Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration);
 
 typedef struct {
     Tasks tasks;
