@@ -40,10 +40,10 @@ void task_vtable_rebuild(Arena *a)
         .update = (task_update_data_t)move_vec4_update,
     });
     TASK_SEQ_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)task_seq_update,
+        .update = (task_update_data_t)seq_update,
     });
     TASK_GROUP_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)task_group_update,
+        .update = (task_update_data_t)group_update,
     });
 }
 
@@ -196,7 +196,7 @@ Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration)
     };
 }
 
-bool task_group_update(Group_Data *data, Env env)
+bool group_update(Group_Data *data, Env env)
 {
     bool finished = true;
     for (size_t i = 0; i < data->tasks.count; ++i) {
@@ -228,7 +228,7 @@ Task task_group_(Arena *a, ...)
     };
 }
 
-bool task_seq_update(Seq_Data *data, Env env)
+bool seq_update(Seq_Data *data, Env env)
 {
     if (data->it >= data->tasks.count) return true;
 

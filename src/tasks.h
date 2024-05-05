@@ -88,7 +88,7 @@ typedef struct {
     Tasks tasks;
 } Group_Data;
 
-bool task_group_update(Group_Data *data, Env env);
+bool group_update(Group_Data *data, Env env);
 Task task_group_(Arena *a, ...);
 #define task_group(...) task_group_(__VA_ARGS__, (Task){0})
 
@@ -97,7 +97,7 @@ typedef struct {
     size_t it;
 } Seq_Data;
 
-bool task_seq_update(Seq_Data *data, Env env);
+bool seq_update(Seq_Data *data, Env env);
 Task task_seq_(Arena *a, ...);
 #define task_seq(...) task_seq_(__VA_ARGS__, (Task){0})
 
