@@ -7,10 +7,9 @@
 #include <raymath.h>
 
 #include "nob.h"
-#define ARENA_IMPLEMENTATION
-#include "arena.h"
 #include "env.h"
 #include "interpolators.h"
+#include "tasks.h"
 
 #if 0
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
@@ -105,11 +104,13 @@ typedef struct {
     size_t ip;
     float action_t;
     float action_init;
-    Arena tape_strings;
+    Arena arena_state;
     Head head;
     Tape tape;
     float scene_t;
     float tape_y_offset;
+    Task task;
+    bool finished;
 
     // Assets (reloads along with the plugin, does not change throughout the animation)
     Script script;
@@ -118,9 +119,200 @@ typedef struct {
     Sound write_sound;
     Wave write_wave;
     Texture2D eggplant;
+    Arena arena_assets;
 } Plug;
 
 static Plug *p = NULL;
+
+static Tag TASK_INTRO_TAG = 0;
+static Tag TASK_MOVE_HEAD_TAG = 0;
+static Tag TASK_WRITE_HEAD_TAG = 0;
+static Tag TASK_WRITE_ALL_TAG = 0;
+
+typedef struct {
+    size_t head;
+    Move_Scalar_Data scene;
+} Intro_Data;
+
+void task_intro_reset(Intro_Data *data, Env env)
+{
+    task_move_scalar_reset(&data->scene, env);
+}
+
+bool task_intro_update(Intro_Data *data, Env env)
+{
+    if (!data->scene.init) p->head.index = data->head;
+    return task_move_scalar_update(&data->scene, env);
+}
+
+Task task_intro(Arena *a, size_t head)
+{
+    Intro_Data *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->head = head;
+    data->scene.value = &p->scene_t;
+    data->scene.target = 1.0f;
+    data->scene.duration = INTRO_DURATION;
+    return (Task) {
+        .tag = TASK_INTRO_TAG,
+        .data = data,
+    };
+}
+
+typedef struct {
+    Direction dir;
+    Move_Scalar_Data head;
+} Move_Head_Data;
+
+void move_head_reset(Move_Head_Data *data, Env env)
+{
+    task_move_scalar_reset(&data->head, env);
+}
+
+bool move_head_update(Move_Head_Data *data, Env env)
+{
+    if (task_move_scalar_update(&data->head, env)) {
+        p->head.offset = 0.0f;
+        p->head.index += data->dir;
+        return true;
+    }
+    return false;
+}
+
+Move_Head_Data move_head(Direction dir)
+{
+    return (Move_Head_Data) {
+        .head = {
+            .value = &p->head.offset,
+            .target = dir,
+            .duration = HEAD_MOVING_DURATION,
+        },
+        .dir = dir,
+    };
+}
+
+Task task_move_head(Arena *a, Direction dir)
+{
+    Move_Head_Data data = move_head(dir);
+    return (Task) {
+        .tag = TASK_MOVE_HEAD_TAG,
+        .data = arena_memdup(a, &data, sizeof(data)),
+    };
+}
+
+typedef struct {
+    const char *write;
+    Move_Scalar_Data head;
+} Write_Head_Data;
+
+void write_head_reset(Write_Head_Data *data, Env env)
+{
+    task_move_scalar_reset(&data->head, env);
+}
+
+bool write_head_update(Write_Head_Data *data, Env env)
+{
+    if (data->head.t >= 1.0f) return true;
+
+    Cell *cell = NULL;
+    if ((size_t)p->head.index < p->tape.count) {
+        cell = &p->tape.items[(size_t)p->head.index];
+    }
+
+    if (!data->head.init) {
+        if (cell) {
+            cell->symbol_b = data->write;
+            data->head.value = &cell->t;
+        }
+    }
+
+    float t1 = data->head.t;
+    bool finished = task_move_scalar_update(&data->head, env);
+    float t2 = data->head.t;
+
+    if (t1 < 0.5 && t2 >= 0.5) {
+        env.play_sound(p->write_sound, p->write_wave);
+    }
+
+    if (finished) {
+        if (cell) {
+            cell->symbol_a = cell->symbol_b;
+            cell->t = 0.0;
+        }
+    }
+
+    return finished;
+}
+
+Task task_write_head(Arena *a, const char *write)
+{
+    Write_Head_Data *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->write = arena_strdup(a, write);
+    data->head.target = 1.0;
+    data->head.duration = HEAD_WRITING_DURATION;
+    return (Task) {
+        .tag = TASK_WRITE_HEAD_TAG,
+        .data = data,
+    };
+}
+
+typedef struct {
+    const char *write;
+    float t;
+    Move_Scalar_Data head;
+} Write_All_Data;
+
+void write_all_reset(Write_All_Data *data, Env env)
+{
+    task_move_scalar_reset(&data->head, env);
+}
+
+bool write_all_update(Write_All_Data *data, Env env)
+{
+    if (data->head.t >= 1.0f) return true;
+
+    if (!data->head.init) {
+        for (size_t i = 0; i < p->tape.count; ++i) {
+            p->tape.items[i].symbol_b = data->write;
+        }
+    }
+
+    float t1 = data->head.t;
+    bool finished = task_move_scalar_update(&data->head, env);
+    float t2 = data->head.t;
+
+    if (t1 < 0.5 && t2 >= 0.5) {
+        env.play_sound(p->write_sound, p->write_wave);
+    }
+
+    for (size_t i = 0; i < p->tape.count; ++i) {
+        p->tape.items[i].t = data->t;
+    }
+
+    if (finished) {
+        for (size_t i = 0; i < p->tape.count; ++i) {
+            p->tape.items[i].symbol_a = p->tape.items[i].symbol_b;
+            p->tape.items[i].t = 0.0f;
+        }
+    }
+
+    return finished;
+}
+
+Task task_write_all(Arena *a, const char *write)
+{
+    Write_All_Data *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->write = arena_strdup(a, write);
+    data->head.duration = HEAD_WRITING_DURATION;
+    data->head.value = &data->t;
+    data->head.target = 1.0f;
+    return (Task) {
+        .tag = TASK_WRITE_ALL_TAG,
+        .data = data,
+    };
+}
 
 static void action(Action_Kind kind, ...)
 {
@@ -201,6 +393,26 @@ static void load_assets(void)
         action(ACTION_WAIT, 1.0f);
         action(ACTION_OUTRO);
     }
+
+    Arena *a = &p->arena_assets;
+    arena_reset(a);
+    task_vtable_rebuild(a);
+    TASK_INTRO_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)task_intro_update,
+        .reset = (task_reset_data_t)task_intro_reset,
+    });
+    TASK_MOVE_HEAD_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)move_head_update,
+        .reset = (task_reset_data_t)move_head_reset,
+    });
+    TASK_WRITE_HEAD_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)write_head_update,
+        .reset = (task_reset_data_t)write_head_reset,
+    });
+    TASK_WRITE_ALL_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)write_all_update,
+        .reset = (task_reset_data_t)write_all_reset,
+    });
 }
 
 static void unload_assets(void)
@@ -218,11 +430,11 @@ void plug_reset(void)
     p->ip = 0;
     p->action_t = 0.0f;
     p->action_init = false;
-    arena_reset(&p->tape_strings);
+    arena_reset(&p->arena_state);
     p->head.index = 0;
     p->tape.count = 0;
-    char *zero = arena_strdup(&p->tape_strings, "0");
-    char *one = arena_strdup(&p->tape_strings, "1");
+    char *zero = arena_strdup(&p->arena_state, "0");
+    char *one = arena_strdup(&p->arena_state, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
         Cell cell = {.symbol_a = zero,};
         nob_da_append(&p->tape, cell);
@@ -233,6 +445,57 @@ void plug_reset(void)
     p->tape.items[START_AT_CELL_INDEX + 2] = CLITERAL(Cell) { .symbol_a = one };
     p->scene_t = 0;
     p->tape_y_offset = 0.0f;
+
+    Arena *a = &p->arena_state;
+#if 0
+    p->task = task_seq(a,
+        task_intro(a, START_AT_CELL_INDEX),
+        task_write_all(a, "1"),
+        task_wait(a, 0.1),
+        task_write_all(a, "2"),
+        task_wait(a, 0.1),
+        task_write_all(a, "3"),
+        task_wait(a, 0.1),
+        task_write_head(a, "69"),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, "420"),
+        task_wait(a, 0.5),
+        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION));
+#else
+    p->task = task_seq(a,
+        task_intro(a, START_AT_CELL_INDEX),
+        task_wait(a, 0.25),
+        task_write_all(a, "1"),
+        task_wait(a, 0.25),
+        task_write_all(a, "2"),
+        task_wait(a, 0.25),
+        task_write_all(a, "3"),
+        task_wait(a, 0.25),
+        task_write_head(a, "0"),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, "0"),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, "0"),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, "1"),
+        task_wait(a, 1),
+        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION),
+
+        task_wait(a, 1),
+
+        task_intro(a, START_AT_CELL_INDEX),
+        task_wait(a, 0.25),
+        task_write_head(a, "1"),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, "1"),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, "1"),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, "0"),
+        task_wait(a, 1),
+        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION));
+#endif
+    p->finished = false;
 }
 
 void plug_init(void)
@@ -335,13 +598,14 @@ void plug_update(Env env)
 
     ClearBackground(BACKGROUND_COLOR);
 
+#if 0
     if (p->ip < p->script.count) {
         Action action = p->script.items[p->ip];
         switch (action.kind) {
             case ACTION_WRITE_ALL: {
                 if (!p->action_init) {
                     p->action_init = true;
-                    char *symbol_b = arena_strdup(&p->tape_strings, action.as.write_all);
+                    char *symbol_b = arena_strdup(&p->arena_state, action.as.write_all);
                     for (size_t i = 0; i < p->tape.count; ++i) {
                         p->tape.items[i].symbol_b = symbol_b;
                         p->tape.items[i].t = 0.0f;
@@ -441,7 +705,7 @@ void plug_update(Env env)
                 if (!p->action_init) {
                     p->action_init = true;
                     if (cell) {
-                        cell->symbol_b = arena_strdup(&p->tape_strings, action.as.write);
+                        cell->symbol_b = arena_strdup(&p->arena_state, action.as.write);
                     }
                 }
 
@@ -466,6 +730,8 @@ void plug_update(Env env)
             } break;
         }
     }
+#endif
+    p->finished = task_update(p->task, env);
 
     render_tape(w, h);
     render_head(w, h);
@@ -473,5 +739,9 @@ void plug_update(Env env)
 
 bool plug_finished(void)
 {
-    return p->ip >= p->script.count;
+    //return p->ip >= p->script.count;
+    return p->finished;
 }
+
+#define ARENA_IMPLEMENTATION
+#include "arena.h"
