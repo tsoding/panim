@@ -25,6 +25,7 @@ typedef struct {
 } Task_VTable;
 
 extern Task_VTable task_vtable;
+extern Tag TASK_MOVE_SCALAR_TAG;
 extern Tag TASK_MOVE_VEC2_TAG;
 extern Tag TASK_MOVE_VEC4_TAG;
 extern Tag TASK_SEQ_TAG;
@@ -40,6 +41,23 @@ typedef struct {
     size_t count;
     size_t capacity;
 } Tasks;
+
+void task_dummy_reset(Task *task, Env env);
+
+typedef struct {
+    Tag tag;
+
+    float t;
+    bool init;
+    float duration;
+
+    float *value;
+    float start, target;
+} Task_Move_Scalar;
+
+void task_move_scalar_reset(Task *task, Env env);
+bool task_move_scalar_update(Task *task, Env env);
+Task *task_move_scalar(Arena *a, float *value, float target, float duration);
 
 typedef struct {
     Tag tag;

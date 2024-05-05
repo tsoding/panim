@@ -4,6 +4,7 @@
 #include "raymath.h"
 
 Task_VTable task_vtable = {0};
+Tag TASK_MOVE_SCALAR_TAG = 0;
 Tag TASK_MOVE_VEC2_TAG = 0;
 Tag TASK_MOVE_VEC4_TAG = 0;
 Tag TASK_SEQ_TAG = 0;
@@ -32,6 +33,10 @@ void task_vtable_rebuild(Arena *a)
 {
     memset(&task_vtable, 0, sizeof(task_vtable));
 
+    TASK_MOVE_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = task_move_scalar_update,
+        .reset = task_move_scalar_reset,
+    });
     TASK_MOVE_VEC2_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = task_move_vec2_update,
         .reset = task_move_vec2_reset,
@@ -56,6 +61,47 @@ void task_vtable_rebuild(Arena *a)
         .reset = task_repeat_reset,
         .update = task_repeat_update,
     });
+}
+
+void task_dummy_reset(Task *task, Env env)
+{
+    (void) task;
+    (void) env;
+}
+
+void task_move_scalar_reset(Task *task, Env env)
+{
+    (void) env;
+    Task_Move_Scalar *data = (void *)task;
+    data->t = 0.0f;
+    data->init = false;
+}
+
+bool task_move_scalar_update(Task *task, Env env)
+{
+    Task_Move_Scalar *data = (void*)task;
+    if (data->t >= 1.0f) return true; // task is done
+
+    if (!data->init) {
+        // First update of the task
+        if (data->value) data->start = *data->value;
+        data->init = true;
+    }
+
+    data->t = (data->t*data->duration + env.delta_time)/data->duration;
+    if (data->value) *data->value = Lerp(data->start, data->target, smoothstep(data->t));
+    return data->t >= 1.0f;
+}
+
+Task *task_move_scalar(Arena *a, float *value, float target, float duration)
+{
+    Task_Move_Scalar *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->tag = TASK_MOVE_SCALAR_TAG;
+    data->value = value;
+    data->target = target;
+    data->duration = duration;
+    return (void*)data;
 }
 
 void task_move_vec2_reset(Task *task, Env env)
