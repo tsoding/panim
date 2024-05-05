@@ -11,7 +11,7 @@
 #include "interpolators.h"
 #include "tasks.h"
 
-#if 0
+#if 1
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
@@ -67,43 +67,10 @@ typedef struct {
     float offset;
 } Head;
 
-typedef enum {
-    ACTION_MOVE,
-    ACTION_WRITE,
-    ACTION_WRITE_ALL,
-    ACTION_INTRO,
-    ACTION_OUTRO,
-    ACTION_WAIT,
-} Action_Kind;
-
-typedef union {
-    Direction move;
-    const char *write;
-    const char *write_all;
-    const char *sweetch;
-    size_t intro; // index of the tape to settle on
-    size_t jump;  // action to jump to
-    float wait;
-} Action_As;
-
-typedef struct {
-    Action_Kind kind;
-    Action_As as;
-} Action;
-
-typedef struct {
-    Action *items;
-    size_t count;
-    size_t capacity;
-} Script;
-
 typedef struct {
     size_t size;
 
     // State (survives the plugin reload, resets on plug_reset)
-    size_t ip;
-    float action_t;
-    float action_init;
     Arena arena_state;
     Head head;
     Tape tape;
@@ -113,13 +80,12 @@ typedef struct {
     bool finished;
 
     // Assets (reloads along with the plugin, does not change throughout the animation)
-    Script script;
+    Arena arena_assets;
     Table table;
     Font font;
     Sound write_sound;
     Wave write_wave;
     Texture2D eggplant;
-    Arena arena_assets;
 } Plug;
 
 static Plug *p = NULL;
@@ -314,26 +280,6 @@ Task task_write_all(Arena *a, const char *write)
     };
 }
 
-static void action(Action_Kind kind, ...)
-{
-    Action action = { .kind = kind };
-    va_list args;
-    va_start(args, kind);
-    switch (kind) {
-    case ACTION_MOVE:      action.as.move      = va_arg(args, Direction);     break;
-    case ACTION_WRITE:     action.as.write     = va_arg(args, const char *);  break;
-    case ACTION_WRITE_ALL: action.as.write_all = va_arg(args, const char *);  break;
-    case ACTION_INTRO:     action.as.intro     = va_arg(args, size_t);        break;
-    case ACTION_OUTRO:                                                        break;
-    case ACTION_WAIT:      action.as.wait      = (float)va_arg(args, double); break;
-    default:
-        fprintf(stderr, "UNREACHABLE\n");
-        abort();
-    }
-    va_end(args);
-    nob_da_append(&p->script, action);
-}
-
 static void table(const char *state, const char *read, const char *write, Direction step, const char *next)
 {
     Rule rule = {
@@ -357,41 +303,6 @@ static void load_assets(void)
     {
         table("Inc", "0", "1", DIR_RIGHT, "Halt");
         table("Inc", "1", "0", DIR_LEFT,  "Inc");
-    }
-
-    // Script
-    {
-        action(ACTION_INTRO, START_AT_CELL_INDEX);
-        action(ACTION_WAIT, 0.25f);
-        action(ACTION_WRITE_ALL, "1");
-        action(ACTION_WAIT, 0.25f);
-        action(ACTION_WRITE_ALL, "2");
-        action(ACTION_WAIT, 0.25f);
-        action(ACTION_WRITE_ALL, "3");
-        action(ACTION_WAIT, 0.25f);
-        action(ACTION_WRITE, "0");
-        action(ACTION_MOVE, DIR_RIGHT);
-        action(ACTION_WRITE, "0");
-        action(ACTION_MOVE, DIR_RIGHT);
-        action(ACTION_WRITE, "0");
-        action(ACTION_MOVE, DIR_RIGHT);
-        action(ACTION_WRITE, "1");
-        action(ACTION_WAIT, 1.0f);
-        action(ACTION_OUTRO);
-
-        action(ACTION_WAIT, 1.0f);
-
-        action(ACTION_INTRO, START_AT_CELL_INDEX);
-        action(ACTION_WAIT, 0.25f);
-        action(ACTION_WRITE, "1");
-        action(ACTION_MOVE, DIR_RIGHT);
-        action(ACTION_WRITE, "1");
-        action(ACTION_MOVE, DIR_RIGHT);
-        action(ACTION_WRITE, "1");
-        action(ACTION_MOVE, DIR_RIGHT);
-        action(ACTION_WRITE, "0");
-        action(ACTION_WAIT, 1.0f);
-        action(ACTION_OUTRO);
     }
 
     Arena *a = &p->arena_assets;
@@ -421,15 +332,11 @@ static void unload_assets(void)
     UnloadSound(p->write_sound);
     UnloadWave(p->write_wave);
     UnloadTexture(p->eggplant);
-    p->script.count = 0;
     p->table.count = 0;
 }
 
 void plug_reset(void)
 {
-    p->ip = 0;
-    p->action_t = 0.0f;
-    p->action_init = false;
     arena_reset(&p->arena_state);
     p->head.index = 0;
     p->tape.count = 0;
@@ -447,21 +354,6 @@ void plug_reset(void)
     p->tape_y_offset = 0.0f;
 
     Arena *a = &p->arena_state;
-#if 0
-    p->task = task_seq(a,
-        task_intro(a, START_AT_CELL_INDEX),
-        task_write_all(a, "1"),
-        task_wait(a, 0.1),
-        task_write_all(a, "2"),
-        task_wait(a, 0.1),
-        task_write_all(a, "3"),
-        task_wait(a, 0.1),
-        task_write_head(a, "69"),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, "420"),
-        task_wait(a, 0.5),
-        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION));
-#else
     p->task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
         task_wait(a, 0.25),
@@ -494,7 +386,6 @@ void plug_reset(void)
         task_write_head(a, "0"),
         task_wait(a, 1),
         task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION));
-#endif
     p->finished = false;
 }
 
@@ -550,8 +441,10 @@ static void text_in_rec(Rectangle rec, const char *from_text, const char *to_tex
     }
 }
 
-static void render_tape(float w, float h)
+static void render_tape(Env env)
 {
+    float w = env.screen_width;
+    float h = env.screen_height;
     float cell_width = CELL_WIDTH;
     float cell_height = CELL_HEIGHT;
     float cell_pad = CELL_PAD;
@@ -571,8 +464,10 @@ static void render_tape(float w, float h)
     }
 }
 
-static void render_head(float w, float h)
+static void render_head(Env env)
 {
+    float w = env.screen_width;
+    float h = env.screen_height;
     float head_thick = 20.0;
     Rectangle rec = {
         .width = CELL_WIDTH + head_thick*3 + (1 - p->scene_t)*head_thick*3,
@@ -583,163 +478,18 @@ static void render_head(float w, float h)
     DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
 }
 
-static void next_action(void)
-{
-    p->action_t = 0.0f;
-    p->action_init = false;
-    p->ip += 1;
-}
-
 void plug_update(Env env)
 {
-    float dt = env.delta_time;
-    float w = env.screen_width;
-    float h = env.screen_height;
-
     ClearBackground(BACKGROUND_COLOR);
 
-#if 0
-    if (p->ip < p->script.count) {
-        Action action = p->script.items[p->ip];
-        switch (action.kind) {
-            case ACTION_WRITE_ALL: {
-                if (!p->action_init) {
-                    p->action_init = true;
-                    char *symbol_b = arena_strdup(&p->arena_state, action.as.write_all);
-                    for (size_t i = 0; i < p->tape.count; ++i) {
-                        p->tape.items[i].symbol_b = symbol_b;
-                        p->tape.items[i].t = 0.0f;
-                    }
-                }
-
-                float t1 = p->action_t;
-                p->action_t = (p->action_t*HEAD_WRITING_DURATION + dt)/HEAD_WRITING_DURATION;
-                float t2 = p->action_t;
-
-                if (t1 < 0.5 && t2 >= 0.5) {
-                    env.play_sound(p->write_sound, p->write_wave);
-                }
-
-                for (size_t i = 0; i < p->tape.count; ++i) {
-                    p->tape.items[i].t = sinstep(p->action_t);
-                }
-
-                if (p->action_t >= 1.0f) {
-                    for (size_t i = 0; i < p->tape.count; ++i) {
-                        p->tape.items[i].symbol_a = p->tape.items[i].symbol_b;
-                        p->tape.items[i].t = 0.0f;
-                    }
-
-                    next_action();
-                }
-            } break;
-
-            case ACTION_WAIT: {
-                if (!p->action_init) {
-                    p->action_init = true;
-                    // nothing to setup
-                }
-
-                p->action_t = (p->action_t*action.as.wait + dt)/action.as.wait;
-
-                if (p->action_t >= 1.0f) {
-                    // nothing to teardown
-                    next_action();
-                }
-            } break;
-
-            case ACTION_INTRO: {
-                if (!p->action_init) {
-                    p->action_init = true;
-                    p->head.index = action.as.intro;
-                }
-
-                p->action_t = (p->action_t*INTRO_DURATION + dt)/INTRO_DURATION;
-                p->scene_t = sinstep(p->action_t);
-
-                if (p->action_t >= 1.0) {
-                    next_action();
-                }
-            } break;
-
-            case ACTION_OUTRO: {
-                if (!p->action_init) {
-                    p->action_init = true;
-                    // nothing to setup
-                }
-
-                p->action_t = (p->action_t*INTRO_DURATION + dt)/INTRO_DURATION;
-                p->scene_t = sinstep(1.0f - p->action_t);
-
-                if (p->action_t >= 1.0) {
-                    p->scene_t = 0;
-
-                    next_action();
-                }
-            } break;
-
-            case ACTION_MOVE: {
-                if (!p->action_init) {
-                    p->action_init = true;
-                    // nothing to setup
-                }
-
-                p->action_t = (p->action_t*HEAD_MOVING_DURATION + dt)/HEAD_MOVING_DURATION;
-
-                p->head.offset = Lerp(0, action.as.move, sinstep(p->action_t));
-
-                if (p->action_t >= 1.0) {
-                    p->head.index += action.as.move;
-                    p->head.offset = 0.0f;
-
-                    next_action();
-                }
-            } break;
-
-            case ACTION_WRITE: {
-                Cell *cell = NULL;
-                if ((size_t)p->head.index < p->tape.count) {
-                    cell = &p->tape.items[(size_t)p->head.index];
-                }
-
-                if (!p->action_init) {
-                    p->action_init = true;
-                    if (cell) {
-                        cell->symbol_b = arena_strdup(&p->arena_state, action.as.write);
-                    }
-                }
-
-                float t1 = p->action_t;
-                p->action_t = (p->action_t*HEAD_WRITING_DURATION + dt)/HEAD_WRITING_DURATION;
-                float t2 = p->action_t;
-
-                if (t1 < 0.5 && t2 >= 0.5) {
-                    env.play_sound(p->write_sound, p->write_wave);
-                }
-
-                cell->t = sinstep(p->action_t);
-
-                if (p->action_t >= 1.0) {
-                    if (cell) {
-                        cell->symbol_a = cell->symbol_b;
-                        cell->t = 0.0;
-                    }
-
-                    next_action();
-                }
-            } break;
-        }
-    }
-#endif
     p->finished = task_update(p->task, env);
 
-    render_tape(w, h);
-    render_head(w, h);
+    render_tape(env);
+    render_head(env);
 }
 
 bool plug_finished(void)
 {
-    //return p->ip >= p->script.count;
     return p->finished;
 }
 
