@@ -100,11 +100,6 @@ typedef struct {
     Move_Scalar_Data scene;
 } Intro_Data;
 
-void task_intro_reset(Intro_Data *data, Env env)
-{
-    task_move_scalar_reset(&data->scene, env);
-}
-
 bool task_intro_update(Intro_Data *data, Env env)
 {
     if (!data->scene.init) p->head.index = data->head;
@@ -129,11 +124,6 @@ typedef struct {
     Direction dir;
     Move_Scalar_Data head;
 } Move_Head_Data;
-
-void move_head_reset(Move_Head_Data *data, Env env)
-{
-    task_move_scalar_reset(&data->head, env);
-}
 
 bool move_head_update(Move_Head_Data *data, Env env)
 {
@@ -170,11 +160,6 @@ typedef struct {
     const char *write;
     Move_Scalar_Data head;
 } Write_Head_Data;
-
-void write_head_reset(Write_Head_Data *data, Env env)
-{
-    task_move_scalar_reset(&data->head, env);
-}
 
 bool write_head_update(Write_Head_Data *data, Env env)
 {
@@ -228,11 +213,6 @@ typedef struct {
     float t;
     Move_Scalar_Data head;
 } Write_All_Data;
-
-void write_all_reset(Write_All_Data *data, Env env)
-{
-    task_move_scalar_reset(&data->head, env);
-}
 
 bool write_all_update(Write_All_Data *data, Env env)
 {
@@ -310,19 +290,15 @@ static void load_assets(void)
     task_vtable_rebuild(a);
     TASK_INTRO_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)task_intro_update,
-        .reset = (task_reset_data_t)task_intro_reset,
     });
     TASK_MOVE_HEAD_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)move_head_update,
-        .reset = (task_reset_data_t)move_head_reset,
     });
     TASK_WRITE_HEAD_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)write_head_update,
-        .reset = (task_reset_data_t)write_head_reset,
     });
     TASK_WRITE_ALL_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)write_all_update,
-        .reset = (task_reset_data_t)write_all_reset,
     });
 }
 
@@ -337,11 +313,13 @@ static void unload_assets(void)
 
 void plug_reset(void)
 {
-    arena_reset(&p->arena_state);
+    Arena *a = &p->arena_state;
+    arena_reset(a);
+
     p->head.index = 0;
     p->tape.count = 0;
-    char *zero = arena_strdup(&p->arena_state, "0");
-    char *one = arena_strdup(&p->arena_state, "1");
+    char *zero = arena_strdup(a, "0");
+    char *one = arena_strdup(a, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
         Cell cell = {.symbol_a = zero,};
         nob_da_append(&p->tape, cell);
@@ -353,7 +331,6 @@ void plug_reset(void)
     p->scene_t = 0;
     p->tape_y_offset = 0.0f;
 
-    Arena *a = &p->arena_state;
     p->task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
         task_wait(a, 0.25),

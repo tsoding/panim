@@ -80,12 +80,12 @@ Task loading(Arena *a)
     Square *s1 = &p->squares[0];
     Square *s2 = &p->squares[1];
     Square *s3 = &p->squares[2];
-    return task_repeat(a, 3, task_seq(a,
+    return task_seq(a,
         shuffle_squares(a, s1, s2, s3),
         shuffle_squares(a, s2, s3, s1),
         shuffle_squares(a, s3, s1, s2),
         task_wait(a, 1.0f)
-    ));
+    );
 }
 
 void plug_reset(void)
