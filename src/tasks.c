@@ -31,7 +31,7 @@ void task_vtable_rebuild(Arena *a)
         .update = (task_update_data_t)wait_update,
     });
     TASK_MOVE_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)task_move_scalar_update,
+        .update = (task_update_data_t)move_scalar_update,
     });
     TASK_MOVE_VEC2_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)task_move_vec2_update,
@@ -47,50 +47,77 @@ void task_vtable_rebuild(Arena *a)
     });
 }
 
+bool wait_done(Wait_Data *data)
+{
+    return data->cursor >= data->duration;
+}
+
+float wait_norm(Wait_Data *data)
+{
+    float t = 0.0f;
+    if (data->duration > 0) {
+        t = data->cursor/data->duration;
+    }
+    return t;
+}
+
 bool wait_update(Wait_Data *data, Env env)
 {
-    if (data->cursor >= data->duration) return true;
+    if (wait_done(data)) return true;
     if (!data->started) data->started = true;
     data->cursor += env.delta_time;
-    return data->cursor >= data->duration;
+    return wait_done(data);
+}
+
+Wait_Data wait_data(float duration)
+{
+    return (Wait_Data) { .duration = duration };
 }
 
 Task task_wait(Arena *a, float duration)
 {
-    Wait_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->duration = duration;
+    Wait_Data data = wait_data(duration);
     return (Task) {
         .tag = TASK_WAIT_TAG,
-        .data = data,
+        .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
 
-bool task_move_scalar_update(Move_Scalar_Data *data, Env env)
+bool move_scalar_update(Move_Scalar_Data *data, Env env)
 {
-    if (data->t >= 1.0f) return true; // task is done
+    if (wait_done(&data->wait)) return true;
 
-    if (!data->init) {
-        // First update of the task
-        if (data->value) data->start = *data->value;
-        data->init = true;
+    if (!data->wait.started && data->value) {
+        data->start = *data->value;
     }
 
-    data->t = (data->t*data->duration + env.delta_time)/data->duration;
-    if (data->value) *data->value = Lerp(data->start, data->target, smoothstep(data->t));
-    return data->t >= 1.0f;
+    bool finished = wait_update(&data->wait, env);
+
+    if (data->value) {
+        *data->value = Lerp(
+            data->start,
+            data->target,
+            smoothstep(wait_norm(&data->wait)));
+    }
+
+    return finished;
+}
+
+Move_Scalar_Data move_scalar_data(float *value, float target, float duration)
+{
+    return (Move_Scalar_Data) {
+        .wait = wait_data(duration),
+        .value = value,
+        .target = target,
+    };
 }
 
 Task task_move_scalar(Arena *a, float *value, float target, float duration)
 {
-    Move_Scalar_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->value = value;
-    data->target = target;
-    data->duration = duration;
+    Move_Scalar_Data data = move_scalar_data(value, target, duration);
     return (Task) {
         .tag = TASK_MOVE_SCALAR_TAG,
-        .data = data,
+        .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
 

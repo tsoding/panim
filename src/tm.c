@@ -96,53 +96,59 @@ static Tag TASK_WRITE_HEAD_TAG = 0;
 static Tag TASK_WRITE_ALL_TAG = 0;
 
 typedef struct {
+    Wait_Data wait;
     size_t head;
-    Move_Scalar_Data scene;
 } Intro_Data;
 
 bool task_intro_update(Intro_Data *data, Env env)
 {
-    if (!data->scene.init) p->head.index = data->head;
-    return task_move_scalar_update(&data->scene, env);
+    if (wait_done(&data->wait)) return true;
+    if (!data->wait.started) p->head.index = data->head;
+    bool finished = wait_update(&data->wait, env);
+    p->scene_t = smoothstep(wait_norm(&data->wait));
+    return finished;
+}
+
+Intro_Data intro_data(size_t head)
+{
+    return (Intro_Data) {
+        .wait = wait_data(INTRO_DURATION),
+        .head = head,
+    };
 }
 
 Task task_intro(Arena *a, size_t head)
 {
-    Intro_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->head = head;
-    data->scene.value = &p->scene_t;
-    data->scene.target = 1.0f;
-    data->scene.duration = INTRO_DURATION;
+    Intro_Data data = intro_data(head);
     return (Task) {
         .tag = TASK_INTRO_TAG,
-        .data = data,
+        .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
 
 typedef struct {
+    Wait_Data wait;
     Direction dir;
-    Move_Scalar_Data head;
 } Move_Head_Data;
 
 bool move_head_update(Move_Head_Data *data, Env env)
 {
-    if (task_move_scalar_update(&data->head, env)) {
+    if (wait_done(&data->wait)) return true;
+
+    if (wait_update(&data->wait, env)) {
         p->head.offset = 0.0f;
         p->head.index += data->dir;
         return true;
     }
+
+    p->head.offset = Lerp(0, data->dir, smoothstep(wait_norm(&data->wait)));
     return false;
 }
 
 Move_Head_Data move_head(Direction dir)
 {
     return (Move_Head_Data) {
-        .head = {
-            .value = &p->head.offset,
-            .target = dir,
-            .duration = HEAD_MOVING_DURATION,
-        },
+        .wait = wait_data(HEAD_MOVING_DURATION),
         .dir = dir,
     };
 }
@@ -157,106 +163,111 @@ Task task_move_head(Arena *a, Direction dir)
 }
 
 typedef struct {
+    Wait_Data wait;
     const char *write;
-    Move_Scalar_Data head;
 } Write_Head_Data;
 
 bool write_head_update(Write_Head_Data *data, Env env)
 {
-    if (data->head.t >= 1.0f) return true;
+    if (wait_done(&data->wait)) return true;
 
     Cell *cell = NULL;
     if ((size_t)p->head.index < p->tape.count) {
         cell = &p->tape.items[(size_t)p->head.index];
     }
 
-    if (!data->head.init) {
-        if (cell) {
-            cell->symbol_b = data->write;
-            data->head.value = &cell->t;
-        }
+    if (!data->wait.started && cell) {
+        cell->symbol_b = data->write;
+        cell->t = 0.0;
     }
 
-    float t1 = data->head.t;
-    bool finished = task_move_scalar_update(&data->head, env);
-    float t2 = data->head.t;
+    float t1 = wait_norm(&data->wait);
+    bool finished = wait_update(&data->wait, env);
+    float t2 = wait_norm(&data->wait);
 
     if (t1 < 0.5 && t2 >= 0.5) {
         env.play_sound(p->write_sound, p->write_wave);
     }
 
-    if (finished) {
-        if (cell) {
-            cell->symbol_a = cell->symbol_b;
-            cell->t = 0.0;
-        }
+    if (cell) cell->t = smoothstep(t2);
+
+    if (finished && cell) {
+        cell->symbol_a = cell->symbol_b;
+        cell->t = 0.0;
     }
 
     return finished;
 }
 
+Write_Head_Data write_head_data(const char *write)
+{
+    return (Write_Head_Data) {
+        .wait = wait_data(HEAD_WRITING_DURATION),
+        .write = write,
+    };
+}
+
 Task task_write_head(Arena *a, const char *write)
 {
-    Write_Head_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->write = arena_strdup(a, write);
-    data->head.target = 1.0;
-    data->head.duration = HEAD_WRITING_DURATION;
+    Write_Head_Data data = write_head_data(arena_strdup(a, write));
     return (Task) {
         .tag = TASK_WRITE_HEAD_TAG,
-        .data = data,
+        .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
 
 typedef struct {
+    Wait_Data wait;
     const char *write;
-    float t;
-    Move_Scalar_Data head;
 } Write_All_Data;
 
 bool write_all_update(Write_All_Data *data, Env env)
 {
-    if (data->head.t >= 1.0f) return true;
+    if (wait_done(&data->wait)) return true;
 
-    if (!data->head.init) {
+    if (!data->wait.started) {
         for (size_t i = 0; i < p->tape.count; ++i) {
+            p->tape.items[i].t = 0.0f;
             p->tape.items[i].symbol_b = data->write;
         }
     }
 
-    float t1 = data->head.t;
-    bool finished = task_move_scalar_update(&data->head, env);
-    float t2 = data->head.t;
+    float t1 = wait_norm(&data->wait);
+    bool finished = wait_update(&data->wait, env);
+    float t2 = wait_norm(&data->wait);
 
     if (t1 < 0.5 && t2 >= 0.5) {
         env.play_sound(p->write_sound, p->write_wave);
     }
 
     for (size_t i = 0; i < p->tape.count; ++i) {
-        p->tape.items[i].t = data->t;
+        p->tape.items[i].t = smoothstep(t2);
     }
 
     if (finished) {
         for (size_t i = 0; i < p->tape.count; ++i) {
-            p->tape.items[i].symbol_a = p->tape.items[i].symbol_b;
             p->tape.items[i].t = 0.0f;
+            p->tape.items[i].symbol_a = p->tape.items[i].symbol_b;
         }
     }
 
     return finished;
 }
 
+Write_All_Data write_all_data(const char *write)
+{
+    return (Write_All_Data) {
+        .write = write,
+        .wait = wait_data(HEAD_WRITING_DURATION),
+    };
+}
+
 Task task_write_all(Arena *a, const char *write)
 {
-    Write_All_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->write = arena_strdup(a, write);
-    data->head.duration = HEAD_WRITING_DURATION;
-    data->head.value = &data->t;
-    data->head.target = 1.0f;
+    Write_All_Data data = write_all_data(arena_strdup(a, write));
     return (Task) {
         .tag = TASK_WRITE_ALL_TAG,
-        .data = data,
+        .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
 

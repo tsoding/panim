@@ -8,8 +8,6 @@ typedef size_t Tag;
 
 typedef struct {
     Tag tag;
-    const char *file;
-    int line;
     void *data;
 } Task;
 
@@ -50,19 +48,20 @@ typedef struct {
     float duration;
 } Wait_Data;
 
+float wait_norm(Wait_Data *data);
+bool wait_done(Wait_Data *data);
 bool wait_update(Wait_Data *data, Env env);
+Wait_Data wait_data(float duration);
 Task task_wait(Arena *a, float duration);
 
 typedef struct {
-    float t;
-    bool init;
-    float duration;
-
+    Wait_Data wait;
     float *value;
     float start, target;
 } Move_Scalar_Data;
 
-bool task_move_scalar_update(Move_Scalar_Data *data, Env env);
+bool move_scalar_update(Move_Scalar_Data *data, Env env);
+Move_Scalar_Data move_scalar_data(float *value, float target, float duration);
 Task task_move_scalar(Arena *a, float *value, float target, float duration);
 
 typedef struct {
