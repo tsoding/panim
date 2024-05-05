@@ -30,7 +30,7 @@ typedef struct {
     Arena state_arena;
     Arena asset_arena;
     Square squares[SQUARES_COUNT];
-    Task *task;
+    Task task;
     bool finished;
 } Plug;
 
@@ -57,7 +57,7 @@ static void unload_assets(void)
     UnloadFont(p->font);
 }
 
-Task *shuffle_squares(Arena *a, Square *s1, Square *s2, Square *s3)
+Task shuffle_squares(Arena *a, Square *s1, Square *s2, Square *s3)
 {
     return task_seq(a,
         task_group(a,
@@ -75,7 +75,7 @@ Task *shuffle_squares(Arena *a, Square *s1, Square *s2, Square *s3)
             task_move_vec4(a, &s3->color, FOREGROUND_COLOR, 0.25)));
 }
 
-Task *loading(Arena *a)
+Task loading(Arena *a)
 {
     Square *s1 = &p->squares[0];
     Square *s2 = &p->squares[1];
