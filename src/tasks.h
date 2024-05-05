@@ -28,12 +28,12 @@ typedef struct {
 } Task_VTable;
 
 extern Task_VTable task_vtable;
+extern Tag TASK_WAIT_TAG;
 extern Tag TASK_MOVE_SCALAR_TAG;
 extern Tag TASK_MOVE_VEC2_TAG;
 extern Tag TASK_MOVE_VEC4_TAG;
 extern Tag TASK_SEQ_TAG;
 extern Tag TASK_GROUP_TAG;
-extern Tag TASK_WAIT_TAG;
 
 Tag task_vtable_register(Arena *a, Task_Funcs funcs);
 void task_vtable_rebuild(Arena *a);
@@ -43,6 +43,15 @@ typedef struct {
     size_t count;
     size_t capacity;
 } Tasks;
+
+typedef struct {
+    bool started;
+    float cursor;
+    float duration;
+} Wait_Data;
+
+bool wait_update(Wait_Data *data, Env env);
+Task task_wait(Arena *a, float duration);
 
 typedef struct {
     float t;
@@ -96,13 +105,5 @@ typedef struct {
 bool task_seq_update(Seq_Data *data, Env env);
 Task task_seq_(Arena *a, ...);
 #define task_seq(...) task_seq_(__VA_ARGS__, (Task){0})
-
-typedef struct {
-    float t;
-    float duration;
-} Wait_Data;
-
-bool task_wait_update(Wait_Data *data, Env env);
-Task task_wait(Arena *a, float duration);
 
 #endif // TASKS_H_

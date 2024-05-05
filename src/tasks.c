@@ -27,6 +27,9 @@ void task_vtable_rebuild(Arena *a)
 {
     memset(&task_vtable, 0, sizeof(task_vtable));
 
+    TASK_WAIT_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)wait_update,
+    });
     TASK_MOVE_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)task_move_scalar_update,
     });
@@ -42,9 +45,25 @@ void task_vtable_rebuild(Arena *a)
     TASK_GROUP_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)task_group_update,
     });
-    TASK_WAIT_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)task_wait_update,
-    });
+}
+
+bool wait_update(Wait_Data *data, Env env)
+{
+    if (data->cursor >= data->duration) return true;
+    if (!data->started) data->started = true;
+    data->cursor += env.delta_time;
+    return data->cursor >= data->duration;
+}
+
+Task task_wait(Arena *a, float duration)
+{
+    Wait_Data *data = arena_alloc(a, sizeof(*data));
+    memset(data, 0, sizeof(*data));
+    data->duration = duration;
+    return (Task) {
+        .tag = TASK_WAIT_TAG,
+        .data = data,
+    };
 }
 
 bool task_move_scalar_update(Move_Scalar_Data *data, Env env)
@@ -191,24 +210,6 @@ Task task_seq_(Arena *a, ...)
 
     return (Task) {
         .tag = TASK_SEQ_TAG,
-        .data = data,
-    };
-}
-
-bool task_wait_update(Wait_Data *data, Env env)
-{
-    if (data->t >= data->duration) return true;
-    data->t += env.delta_time;
-    return data->t >= data->duration;
-}
-
-Task task_wait(Arena *a, float duration)
-{
-    Wait_Data *data = arena_alloc(a, sizeof(*data));
-    memset(data, 0, sizeof(*data));
-    data->duration = duration;
-    return (Task) {
-        .tag = TASK_WAIT_TAG,
         .data = data,
     };
 }
