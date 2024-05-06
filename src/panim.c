@@ -260,10 +260,21 @@ int main(int argc, char **argv)
                         plug_reset();
                     }
 
+                    float delta_time = 0.0;
+                    if (paused) {
+                        if (IsKeyPressed(KEY_PERIOD)) {
+                            delta_time = FFMPEG_VIDEO_DELTA_TIME;
+                        } else {
+                            delta_time = 0.0f;
+                        }
+                    } else {
+                        delta_time = GetFrameTime();
+                    }
+
                     plug_update(CLITERAL(Env) {
                         .screen_width = GetScreenWidth(),
                         .screen_height = GetScreenHeight(),
-                        .delta_time = paused ? 0.0f : GetFrameTime(),
+                        .delta_time = delta_time,
                         .rendering = false,
                         .play_sound = preview_play_sound,
                     });
