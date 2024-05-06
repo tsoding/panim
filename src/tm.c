@@ -322,6 +322,8 @@ static void table(const char *state, const char *read, const char *write, Direct
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
+    GenTextureMipmaps(&p->font.texture);
+    SetTextureFilter(p->font.texture, TEXTURE_FILTER_BILINEAR);
     p->images[IMAGE_EGGPLANT] = LoadTexture("./assets/images/eggplant.png");
     p->images[IMAGE_100] = LoadTexture("./assets/images/100.png");
     p->images[IMAGE_FIRE] = LoadTexture("./assets/images/fire.png");
@@ -498,28 +500,42 @@ void plug_update(Env env)
 
     p->finished = task_update(p->task, env);
 
-    float t = (float)p->head.index + p->head.offset;
-
-    for (size_t i = 0; i < p->tape.count; ++i) {
-        Rectangle rec = {
-            .x = i*(CELL_WIDTH + CELL_PAD) + env.screen_width/2 - CELL_WIDTH/2 - Lerp(-20.0, t, p->scene_t)*(CELL_WIDTH + CELL_PAD),
-            .y = env.screen_height/2 - CELL_HEIGHT/2 - p->tape_y_offset,
-            .width = CELL_WIDTH,
-            .height = CELL_HEIGHT,
-        };
-        DrawRectangleRec(rec, CELL_COLOR);
-
-        interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, p->tape.items[i].t, BACKGROUND_COLOR);
-    }
-
     float head_thick = 20.0;
-    Rectangle rec = {
+    Rectangle head_rec = {
         .width = CELL_WIDTH + head_thick*3 + (1 - p->scene_t)*head_thick*3,
         .height = CELL_HEIGHT + head_thick*3 + (1 - p->scene_t)*head_thick*3,
     };
-    rec.x = env.screen_width/2 - rec.width/2;
-    rec.y = env.screen_height/2 - rec.height/2 - p->tape_y_offset;
-    DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
+    float t = ((float)p->head.index + p->head.offset);
+    head_rec.x = CELL_WIDTH/2 - head_rec.width/2 + Lerp(-20.0, t, p->scene_t)*(CELL_WIDTH + CELL_PAD);
+    head_rec.y = CELL_HEIGHT/2 - head_rec.height/2 - p->tape_y_offset;
+    Camera2D camera = {
+        .target = {
+            .x = head_rec.x + head_rec.width/2,
+            .y = head_rec.y + head_rec.height/2,
+        },
+        .zoom = Lerp(0.5, 1.0, p->scene_t),
+        .offset = {
+            .x = env.screen_width/2,
+            .y = env.screen_height/2,
+        },
+    };
+    BeginMode2D(camera);
+
+        for (size_t i = 0; i < p->tape.count; ++i) {
+            Rectangle rec = {
+                .x = i*(CELL_WIDTH + CELL_PAD),
+                .y = -p->tape_y_offset,
+                .width = CELL_WIDTH,
+                .height = CELL_HEIGHT,
+            };
+            DrawRectangleRec(rec, CELL_COLOR);
+
+            interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, p->tape.items[i].t, BACKGROUND_COLOR);
+        }
+
+        DrawRectangleLinesEx(head_rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
+
+    EndMode2D();
 }
 
 bool plug_finished(void)
