@@ -72,11 +72,17 @@ void arena_free(Arena *a);
 
 #define ARENA_DA_INIT_CAP 256
 
+#ifdef __cplusplus
+    #define cast_ptr(ptr) (decltype(ptr))
+#else
+    #define cast_ptr(...)
+#endif
+
 #define arena_da_append(a, da, item)                                                          \
     do {                                                                                      \
         if ((da)->count >= (da)->capacity) {                                                  \
             size_t new_capacity = (da)->capacity == 0 ? ARENA_DA_INIT_CAP : (da)->capacity*2; \
-            (da)->items = arena_realloc(                                                      \
+            (da)->items = cast_ptr((da)->items)arena_realloc(                                 \
                 (a), (da)->items,                                                             \
                 (da)->capacity*sizeof(*(da)->items),                                          \
                 new_capacity*sizeof(*(da)->items));                                           \
@@ -99,7 +105,7 @@ Region *new_region(size_t capacity)
 {
     size_t size_bytes = sizeof(Region) + sizeof(uintptr_t)*capacity;
     // TODO: it would be nice if we could guarantee that the regions are allocated by ARENA_BACKEND_LIBC_MALLOC are page aligned
-    Region *r = malloc(size_bytes);
+    Region *r = (Region*)malloc(size_bytes);
     ARENA_ASSERT(r);
     r->next = NULL;
     r->count = 0;
@@ -224,8 +230,8 @@ void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz)
 {
     if (newsz <= oldsz) return oldptr;
     void *newptr = arena_alloc(a, newsz);
-    char *newptr_char = newptr;
-    char *oldptr_char = oldptr;
+    char *newptr_char = (char*)newptr;
+    char *oldptr_char = (char*)oldptr;
     for (size_t i = 0; i < oldsz; ++i) {
         newptr_char[i] = oldptr_char[i];
     }
@@ -235,7 +241,7 @@ void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz)
 char *arena_strdup(Arena *a, const char *cstr)
 {
     size_t n = strlen(cstr);
-    char *dup = arena_alloc(a, n + 1);
+    char *dup = (char*)arena_alloc(a, n + 1);
     memcpy(dup, cstr, n);
     dup[n] = '\0';
     return dup;

@@ -210,7 +210,7 @@ bool group_update(Group_Data *data, Env env)
 
 Task task_group_(Arena *a, ...)
 {
-    Group_Data *data = arena_alloc(a, sizeof(*data));
+    Group_Data *data = (Group_Data*)arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
 
     va_list args;
@@ -242,7 +242,7 @@ bool seq_update(Seq_Data *data, Env env)
 
 Task task_seq_(Arena *a, ...)
 {
-    Seq_Data *data = arena_alloc(a, sizeof(*data));
+    Seq_Data *data = (Seq_Data*)arena_alloc(a, sizeof(*data));
     memset(data, 0, sizeof(*data));
 
     va_list args;
