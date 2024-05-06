@@ -21,11 +21,11 @@
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 1 - 0.88)
 #endif
 
-#define FONT_SIZE 52
-#define CELL_WIDTH 100.0f
-#define CELL_HEIGHT 100.0f
+#define FONT_SIZE (52*2)
+#define CELL_WIDTH 200.0f
+#define CELL_HEIGHT 200.0f
 #define CELL_PAD (CELL_WIDTH*0.15f)
-#define START_AT_CELL_INDEX 10
+#define START_AT_CELL_INDEX 5
 #define HEAD_MOVING_DURATION 0.5f
 #define HEAD_WRITING_DURATION 0.2f
 #define INTRO_DURATION 1.0f
@@ -50,9 +50,45 @@ typedef struct {
     size_t capacity;
 } Table;
 
+typedef enum {
+    IMAGE_EGGPLANT,
+    IMAGE_100,
+    IMAGE_FIRE,
+    IMAGE_JOY,
+    IMAGE_OK,
+    COUNT_IMAGES,
+} Image_Index;
+
+typedef enum {
+    SYMBOL_TEXT,
+    SYMBOL_IMAGE,
+} Symbol_Kind;
+
 typedef struct {
-    const char *symbol_a;
-    const char *symbol_b;
+    Symbol_Kind kind;
+    const char *text;
+    Image_Index image_index;
+} Symbol;
+
+Symbol symbol_text(Arena *a, const char *text)
+{
+    return (Symbol) {
+        .kind = SYMBOL_TEXT,
+        .text = arena_strdup(a, text),
+    };
+}
+
+Symbol symbol_image(Image_Index image_index)
+{
+    return (Symbol) {
+        .kind = SYMBOL_IMAGE,
+        .image_index = image_index,
+    };
+}
+
+typedef struct {
+    Symbol symbol_a;
+    Symbol symbol_b;
     float t;
 } Cell;
 
@@ -85,7 +121,7 @@ typedef struct {
     Font font;
     Sound write_sound;
     Wave write_wave;
-    Texture2D eggplant;
+    Texture2D images[COUNT_IMAGES];
 } Plug;
 
 static Plug *p = NULL;
@@ -164,7 +200,7 @@ Task task_move_head(Arena *a, Direction dir)
 
 typedef struct {
     Wait_Data wait;
-    const char *write;
+    Symbol write;
 } Write_Head_Data;
 
 bool write_head_update(Write_Head_Data *data, Env env)
@@ -199,7 +235,7 @@ bool write_head_update(Write_Head_Data *data, Env env)
     return finished;
 }
 
-Write_Head_Data write_head_data(const char *write)
+Write_Head_Data write_head_data(Symbol write)
 {
     return (Write_Head_Data) {
         .wait = wait_data(HEAD_WRITING_DURATION),
@@ -207,9 +243,9 @@ Write_Head_Data write_head_data(const char *write)
     };
 }
 
-Task task_write_head(Arena *a, const char *write)
+Task task_write_head(Arena *a, Symbol write)
 {
-    Write_Head_Data data = write_head_data(arena_strdup(a, write));
+    Write_Head_Data data = write_head_data(write);
     return (Task) {
         .tag = TASK_WRITE_HEAD_TAG,
         .data = arena_memdup(a, &data, sizeof(data)),
@@ -218,7 +254,7 @@ Task task_write_head(Arena *a, const char *write)
 
 typedef struct {
     Wait_Data wait;
-    const char *write;
+    Symbol write;
 } Write_All_Data;
 
 bool write_all_update(Write_All_Data *data, Env env)
@@ -254,7 +290,7 @@ bool write_all_update(Write_All_Data *data, Env env)
     return finished;
 }
 
-Write_All_Data write_all_data(const char *write)
+Write_All_Data write_all_data(Symbol write)
 {
     return (Write_All_Data) {
         .write = write,
@@ -262,9 +298,9 @@ Write_All_Data write_all_data(const char *write)
     };
 }
 
-Task task_write_all(Arena *a, const char *write)
+Task task_write_all(Arena *a, Symbol write)
 {
-    Write_All_Data data = write_all_data(arena_strdup(a, write));
+    Write_All_Data data = write_all_data(write);
     return (Task) {
         .tag = TASK_WRITE_ALL_TAG,
         .data = arena_memdup(a, &data, sizeof(data)),
@@ -286,7 +322,11 @@ static void table(const char *state, const char *read, const char *write, Direct
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
-    p->eggplant = LoadTexture("./assets/images/eggplant.png");
+    p->images[IMAGE_EGGPLANT] = LoadTexture("./assets/images/eggplant.png");
+    p->images[IMAGE_100] = LoadTexture("./assets/images/100.png");
+    p->images[IMAGE_FIRE] = LoadTexture("./assets/images/fire.png");
+    p->images[IMAGE_JOY] = LoadTexture("./assets/images/joy.png");
+    p->images[IMAGE_OK] = LoadTexture("./assets/images/ok.png");
     p->write_wave = LoadWave("./assets/sounds/plant-bomb.wav");
     p->write_sound = LoadSoundFromWave(p->write_wave);
 
@@ -318,8 +358,46 @@ static void unload_assets(void)
     UnloadFont(p->font);
     UnloadSound(p->write_sound);
     UnloadWave(p->write_wave);
-    UnloadTexture(p->eggplant);
+    for (size_t i = 0; i < COUNT_IMAGES; ++i) {
+        UnloadTexture(p->images[i]);
+    }
     p->table.count = 0;
+}
+
+Task test_video(Arena *a)
+{
+    return task_seq(a,
+        task_intro(a, START_AT_CELL_INDEX),
+        task_wait(a, 0.25),
+        task_write_all(a, symbol_text(a, "1")),
+        task_wait(a, 0.25),
+        task_write_all(a, symbol_text(a, "2")),
+        task_wait(a, 0.25),
+        task_write_all(a, symbol_text(a, "3")),
+        task_wait(a, 0.25),
+        task_write_head(a, symbol_text(a, "0")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "0")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "0")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "1")),
+        task_wait(a, 1),
+        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION),
+
+        task_wait(a, 1),
+
+        task_intro(a, START_AT_CELL_INDEX),
+        task_wait(a, 0.25),
+        task_write_head(a, symbol_text(a, "1")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "1")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "1")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "0")),
+        task_wait(a, 1),
+        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION));
 }
 
 void plug_reset(void)
@@ -329,51 +407,50 @@ void plug_reset(void)
 
     p->head.index = 0;
     p->tape.count = 0;
-    char *zero = arena_strdup(a, "0");
-    char *one = arena_strdup(a, "1");
+    Symbol zero = symbol_text(a, "0");
+    Symbol one = symbol_text(a, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
         Cell cell = {.symbol_a = zero,};
         nob_da_append(&p->tape, cell);
     }
 
-    p->tape.items[START_AT_CELL_INDEX + 0] = CLITERAL(Cell) { .symbol_a = one };
-    p->tape.items[START_AT_CELL_INDEX + 1] = CLITERAL(Cell) { .symbol_a = one };
-    p->tape.items[START_AT_CELL_INDEX + 2] = CLITERAL(Cell) { .symbol_a = one };
+    // p->tape.items[START_AT_CELL_INDEX + 0] = CLITERAL(Cell) { .symbol_a = one };
+    // p->tape.items[START_AT_CELL_INDEX + 1] = CLITERAL(Cell) { .symbol_a = one };
+    // p->tape.items[START_AT_CELL_INDEX + 2] = CLITERAL(Cell) { .symbol_a = one };
     p->scene_t = 0;
     p->tape_y_offset = 0.0f;
 
+    // p->task = test_video(a);
     p->task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
-        task_wait(a, 0.25),
-        task_write_all(a, "1"),
-        task_wait(a, 0.25),
-        task_write_all(a, "2"),
-        task_wait(a, 0.25),
-        task_write_all(a, "3"),
-        task_wait(a, 0.25),
-        task_write_head(a, "0"),
+        task_wait(a, 0.75),
+
+        task_write_head(a, symbol_text(a, "1")),
         task_move_head(a, DIR_RIGHT),
-        task_write_head(a, "0"),
+        task_write_head(a, symbol_text(a, "2")),
         task_move_head(a, DIR_RIGHT),
-        task_write_head(a, "0"),
+        task_write_head(a, symbol_text(a, "69")),
         task_move_head(a, DIR_RIGHT),
-        task_write_head(a, "1"),
-        task_wait(a, 1),
+        task_write_head(a, symbol_text(a, "420")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, ":)")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_JOY)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_FIRE)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_OK)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_100)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_EGGPLANT)),
+        task_write_all(a, symbol_text(a, "0")),
+        task_write_all(a, symbol_text(a, "69")),
+        task_write_all(a, symbol_image(IMAGE_EGGPLANT)),
+        task_write_all(a, symbol_text(a, "0")),
+        task_wait(a, 0.5),
         task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION),
-
-        task_wait(a, 1),
-
-        task_intro(a, START_AT_CELL_INDEX),
-        task_wait(a, 0.25),
-        task_write_head(a, "1"),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, "1"),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, "1"),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, "0"),
-        task_wait(a, 1),
-        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION));
+        task_wait(a, 0.5));
     p->finished = false;
 }
 
@@ -406,27 +483,44 @@ void plug_post_reload(void *state)
     load_assets();
 }
 
-static void text_in_rec(Rectangle rec, const char *from_text, const char *to_text, float t, Color color)
+static void text_in_rec(Rectangle rec, const char *text, float t, Color color)
 {
     Vector2 cell_size = {rec.width, rec.height};
+    float font_size = FONT_SIZE*t;
+    Vector2 text_size = MeasureTextEx(p->font, text, font_size, 0);
+    Vector2 position = { .x = rec.x, .y = rec.y };
+    position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
+    position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
+    DrawTextEx(p->font, text, position, font_size, 0, ColorAlpha(color, t));
+}
 
-    {
-        float font_size = FONT_SIZE*(1 - t);
-        Vector2 text_size = MeasureTextEx(p->font, from_text, font_size, 0);
-        Vector2 position = { .x = rec.x, .y = rec.y };
-        position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
-        position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-        DrawTextEx(p->font, from_text, position, font_size, 0, ColorAlpha(color, 1 - t));
-    }
+static void image_in_rec(Rectangle rec, Texture2D image, float t, Color color)
+{
+    Vector2 cell_size = {rec.width, rec.height};
+    Vector2 image_size = {image.width, image.height};
+    image_size = Vector2Scale(image_size, t);
+    Vector2 position = {rec.x, rec.y};
+    position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
+    position = Vector2Subtract(position, Vector2Scale(image_size, 0.5));
+    DrawTextureEx(image, position, 0.0, t, ColorAlpha(color, t));
+}
 
-    {
-        float font_size = FONT_SIZE*t;
-        Vector2 text_size = MeasureTextEx(p->font, to_text, font_size, 0);
-        Vector2 position = { .x = rec.x, .y = rec.y };
-        position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
-        position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-        DrawTextEx(p->font, to_text, position, font_size, 0, ColorAlpha(color, t));
+static void symbol_in_rec(Rectangle rec, Symbol symbol, float t, Color color)
+{
+    switch (symbol.kind) {
+        case SYMBOL_TEXT: {
+            text_in_rec(rec, symbol.text, t, color);
+        } break;
+        case SYMBOL_IMAGE: {
+            image_in_rec(rec, p->images[symbol.image_index], t, WHITE);
+        } break;
     }
+}
+
+static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_symbol, float t, Color color)
+{
+    symbol_in_rec(rec, from_symbol, 1 - t, color);
+    symbol_in_rec(rec, to_symbol, t, color);
 }
 
 static void render_tape(Env env)
@@ -448,7 +542,7 @@ static void render_tape(Env env)
         };
         DrawRectangleRec(rec, CELL_COLOR);
 
-        text_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, p->tape.items[i].t, BACKGROUND_COLOR);
+        interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, p->tape.items[i].t, BACKGROUND_COLOR);
     }
 }
 
