@@ -20,10 +20,9 @@ public:
 
 class Seq: public Task {
 public:
-    template<typename... Ts>
-    Seq(Ts... args):
+    Seq(std::initializer_list<Task*> tasks):
         it(0),
-        tasks({ args... })
+        tasks(tasks)
     {}
 
     virtual ~Seq() override {
@@ -131,15 +130,15 @@ extern "C" {
 
 void plug_reset(void)
 {
-    if (p->task) delete p->task;
     p->finished = false;
-    p->task = new Seq (
-        new Move_Vec2(&p->position, Vector2 {200.0, 200.0}, 0.5f),
-        new Move_Vec2(&p->position, Vector2 {200.0, 0.0}, 0.5f),
-        new Move_Vec2(&p->position, Vector2 {0.0, 200.0}, 0.5f),
-        new Move_Vec2(&p->position, Vector2 {0.0, 0.0}, 0.5f)
-    );
-    p->position = Vector2{0, 0};
+    if (p->task) delete p->task;
+    p->task = new Seq {
+        new Move_Vec2(&p->position, {200.0, 200.0}, 0.5f),
+        new Move_Vec2(&p->position, {200.0, 0.0}, 0.5f),
+        new Move_Vec2(&p->position, {0.0, 200.0}, 0.5f),
+        new Move_Vec2(&p->position, {0.0, 0.0}, 0.5f)
+    };
+    p->position = {0, 0};
 }
 
 void plug_init(void)
