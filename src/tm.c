@@ -21,9 +21,9 @@
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 1 - 0.88)
 #endif
 
-#define FONT_SIZE (52*2)
 #define CELL_WIDTH 200.0f
 #define CELL_HEIGHT 200.0f
+#define FONT_SIZE (CELL_WIDTH*0.52f)
 #define CELL_PAD (CELL_WIDTH*0.15f)
 #define START_AT_CELL_INDEX 5
 #define HEAD_MOVING_DURATION 0.5f
@@ -141,7 +141,7 @@ bool task_intro_update(Intro_Data *data, Env env)
     if (wait_done(&data->wait)) return true;
     if (!data->wait.started) p->head.index = data->head;
     bool finished = wait_update(&data->wait, env);
-    p->scene_t = smoothstep(wait_norm(&data->wait));
+    p->scene_t = smoothstep(wait_interp(&data->wait));
     return finished;
 }
 
@@ -177,7 +177,7 @@ bool move_head_update(Move_Head_Data *data, Env env)
         return true;
     }
 
-    p->head.offset = Lerp(0, data->dir, smoothstep(wait_norm(&data->wait)));
+    p->head.offset = Lerp(0, data->dir, smoothstep(wait_interp(&data->wait)));
     return false;
 }
 
@@ -217,9 +217,9 @@ bool write_head_update(Write_Head_Data *data, Env env)
         cell->t = 0.0;
     }
 
-    float t1 = wait_norm(&data->wait);
+    float t1 = wait_interp(&data->wait);
     bool finished = wait_update(&data->wait, env);
-    float t2 = wait_norm(&data->wait);
+    float t2 = wait_interp(&data->wait);
 
     if (t1 < 0.5 && t2 >= 0.5) {
         env.play_sound(p->write_sound, p->write_wave);
@@ -268,9 +268,9 @@ bool write_all_update(Write_All_Data *data, Env env)
         }
     }
 
-    float t1 = wait_norm(&data->wait);
+    float t1 = wait_interp(&data->wait);
     bool finished = wait_update(&data->wait, env);
-    float t2 = wait_norm(&data->wait);
+    float t2 = wait_interp(&data->wait);
 
     if (t1 < 0.5 && t2 >= 0.5) {
         env.play_sound(p->write_sound, p->write_wave);
@@ -327,6 +327,10 @@ static void load_assets(void)
     p->images[IMAGE_FIRE] = LoadTexture("./assets/images/fire.png");
     p->images[IMAGE_JOY] = LoadTexture("./assets/images/joy.png");
     p->images[IMAGE_OK] = LoadTexture("./assets/images/ok.png");
+    for (size_t i = 0; i < COUNT_IMAGES; ++i) {
+        GenTextureMipmaps(&p->images[i]);
+        SetTextureFilter(p->images[i], TEXTURE_FILTER_BILINEAR);
+    }
     p->write_wave = LoadWave("./assets/sounds/plant-bomb.wav");
     p->write_sound = LoadSoundFromWave(p->write_wave);
 
@@ -364,63 +368,23 @@ static void unload_assets(void)
     p->table.count = 0;
 }
 
-Task test_video(Arena *a)
-{
-    return task_seq(a,
-        task_intro(a, START_AT_CELL_INDEX),
-        task_wait(a, 0.25),
-        task_write_all(a, symbol_text(a, "1")),
-        task_wait(a, 0.25),
-        task_write_all(a, symbol_text(a, "2")),
-        task_wait(a, 0.25),
-        task_write_all(a, symbol_text(a, "3")),
-        task_wait(a, 0.25),
-        task_write_head(a, symbol_text(a, "0")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "0")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "0")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "1")),
-        task_wait(a, 1),
-        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION),
-
-        task_wait(a, 1),
-
-        task_intro(a, START_AT_CELL_INDEX),
-        task_wait(a, 0.25),
-        task_write_head(a, symbol_text(a, "1")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "1")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "1")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "0")),
-        task_wait(a, 1),
-        task_move_scalar(a, &p->scene_t, 0.0, INTRO_DURATION));
-}
-
 void plug_reset(void)
 {
     Arena *a = &p->arena_state;
     arena_reset(a);
 
     p->head.index = 0;
+    p->head.offset = 0;
     p->tape.count = 0;
     Symbol zero = symbol_text(a, "0");
-    Symbol one = symbol_text(a, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
         Cell cell = {.symbol_a = zero,};
         nob_da_append(&p->tape, cell);
     }
 
-    // p->tape.items[START_AT_CELL_INDEX + 0] = CLITERAL(Cell) { .symbol_a = one };
-    // p->tape.items[START_AT_CELL_INDEX + 1] = CLITERAL(Cell) { .symbol_a = one };
-    // p->tape.items[START_AT_CELL_INDEX + 2] = CLITERAL(Cell) { .symbol_a = one };
     p->scene_t = 0;
     p->tape_y_offset = 0.0f;
 
-    // p->task = test_video(a);
     p->task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
         task_wait(a, 0.75),
@@ -497,12 +461,17 @@ static void text_in_rec(Rectangle rec, const char *text, float t, Color color)
 static void image_in_rec(Rectangle rec, Texture2D image, float t, Color color)
 {
     Vector2 cell_size = {rec.width, rec.height};
-    Vector2 image_size = {image.width, image.height};
-    image_size = Vector2Scale(image_size, t);
+
+    Vector2 image_size = {cell_size.x, cell_size.y};
+    image_size = Vector2Scale(image_size, t*0.52);
+
     Vector2 position = {rec.x, rec.y};
     position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
     position = Vector2Subtract(position, Vector2Scale(image_size, 0.5));
-    DrawTextureEx(image, position, 0.0, t, ColorAlpha(color, t));
+
+    Rectangle source = { 0, 0, image.width, image.height };
+    Rectangle dest = { position.x, position.y, image_size.x, image_size.y };
+    DrawTexturePro(image, source, dest, Vector2Zero(), 0.0, color);
 }
 
 static void symbol_in_rec(Rectangle rec, Symbol symbol, float t, Color color)

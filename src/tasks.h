@@ -48,7 +48,7 @@ typedef struct {
     float duration;
 } Wait_Data;
 
-float wait_norm(Wait_Data *data);
+float wait_interp(Wait_Data *data);
 bool wait_done(Wait_Data *data);
 bool wait_update(Wait_Data *data, Env env);
 Wait_Data wait_data(float duration);

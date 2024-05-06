@@ -52,7 +52,7 @@ bool wait_done(Wait_Data *data)
     return data->cursor >= data->duration;
 }
 
-float wait_norm(Wait_Data *data)
+float wait_interp(Wait_Data *data)
 {
     float t = 0.0f;
     if (data->duration > 0) {
@@ -97,7 +97,7 @@ bool move_scalar_update(Move_Scalar_Data *data, Env env)
         *data->value = Lerp(
             data->start,
             data->target,
-            smoothstep(wait_norm(&data->wait)));
+            smoothstep(wait_interp(&data->wait)));
     }
 
     return finished;
@@ -135,7 +135,7 @@ bool move_vec2_update(Move_Vec2_Data *data, Env env)
         *data->value = Vector2Lerp(
             data->start,
             data->target,
-            smoothstep(wait_norm(&data->wait)));
+            smoothstep(wait_interp(&data->wait)));
     }
     return finished;
 }
@@ -172,7 +172,7 @@ bool move_vec4_update(Move_Vec4_Data *data, Env env)
         *data->value = QuaternionLerp(
             data->start,
             data->target,
-            smoothstep(wait_norm(&data->wait)));
+            smoothstep(wait_interp(&data->wait)));
     }
 
     return finished;
