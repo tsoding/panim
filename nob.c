@@ -8,6 +8,13 @@ void cc(Nob_Cmd *cmd)
 {
     nob_cmd_append(cmd, "cc");
     nob_cmd_append(cmd, "-Wall", "-Wextra", "-ggdb");
+    nob_cmd_append(cmd, "-I./raylib/raylib-5.0_linux_amd64/include");
+}
+
+void cxx(Nob_Cmd *cmd)
+{
+    nob_cmd_append(cmd, "g++");
+    nob_cmd_append(cmd, "-Wall", "-Wextra", "-ggdb");
     nob_cmd_append(cmd, "-Wno-missing-field-initializers"); // Very common warning when compiling raymath.h as C++
     nob_cmd_append(cmd, "-I./raylib/raylib-5.0_linux_amd64/include");
 }
@@ -20,11 +27,22 @@ void libs(Nob_Cmd *cmd)
     nob_cmd_append(cmd, "-l:libraylib.so", "-lm", "-ldl", "-lpthread");
 }
 
-bool build_plug(Nob_Cmd *cmd, const char *source_path, const char *output_path)
+bool build_plug_c(Nob_Cmd *cmd, const char *source_path, const char *output_path)
 {
     cmd->count = 0;
     cc(cmd);
-    nob_cmd_append(cmd, "-fPIC", "-shared");
+    nob_cmd_append(cmd, "-fPIC", "-shared", "-Wl,--no-undefined");
+    nob_cmd_append(cmd, "-o", output_path);
+    nob_cmd_append(cmd, source_path, SRC_DIR"/tasks.c");
+    libs(cmd);
+    return nob_cmd_run_sync(*cmd);
+}
+
+bool build_plug_cxx(Nob_Cmd *cmd, const char *source_path, const char *output_path)
+{
+    cmd->count = 0;
+    cxx(cmd);
+    nob_cmd_append(cmd, "-fPIC", "-shared", "-Wl,--no-undefined");
     nob_cmd_append(cmd, "-o", output_path);
     nob_cmd_append(cmd, source_path, SRC_DIR"/tasks.c");
     libs(cmd);
@@ -48,10 +66,10 @@ int main(int argc, char **argv)
     if (!nob_mkdir_if_not_exists(BUILD_DIR)) return 1;
 
     Nob_Cmd cmd = {0};
-    if (!build_plug(&cmd, SRC_DIR"/tm.c", BUILD_DIR"/libtm.so")) return 1;
-    if (!build_plug(&cmd, SRC_DIR"/template.c", BUILD_DIR"/libtemplate.so")) return 1;
-    if (!build_plug(&cmd, SRC_DIR"/squares.c", BUILD_DIR"/libsquare.so")) return 1;
-    if (!build_plug(&cmd, SRC_DIR"/probe.cpp", BUILD_DIR"/libprobe.so")) return 1;
+    if (!build_plug_c(&cmd, SRC_DIR"/tm.c", BUILD_DIR"/libtm.so")) return 1;
+    if (!build_plug_c(&cmd, SRC_DIR"/template.c", BUILD_DIR"/libtemplate.so")) return 1;
+    if (!build_plug_c(&cmd, SRC_DIR"/squares.c", BUILD_DIR"/libsquare.so")) return 1;
+    if (!build_plug_cxx(&cmd, SRC_DIR"/probe.cpp", BUILD_DIR"/libprobe.so")) return 1;
     if (!build_panim(&cmd)) return 1;
 
     return 0;
