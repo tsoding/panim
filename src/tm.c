@@ -492,51 +492,34 @@ static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_sy
     symbol_in_rec(rec, to_symbol, t, color);
 }
 
-static void render_tape(Env env)
-{
-    float w = env.screen_width;
-    float h = env.screen_height;
-    float cell_width = CELL_WIDTH;
-    float cell_height = CELL_HEIGHT;
-    float cell_pad = CELL_PAD;
-
-    float _t = (float)p->head.index + p->head.offset;
-
-    for (size_t i = 0; i < p->tape.count; ++i) {
-        Rectangle rec = {
-            .x = i*(cell_width + cell_pad) + w/2 - cell_width/2 - Lerp(-20.0, _t, p->scene_t)*(cell_width + cell_pad),
-            .y = h/2 - cell_height/2 - p->tape_y_offset,
-            .width = cell_width,
-            .height = cell_height,
-        };
-        DrawRectangleRec(rec, CELL_COLOR);
-
-        interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, p->tape.items[i].t, BACKGROUND_COLOR);
-    }
-}
-
-static void render_head(Env env)
-{
-    float w = env.screen_width;
-    float h = env.screen_height;
-    float head_thick = 20.0;
-    Rectangle rec = {
-        .width = CELL_WIDTH + head_thick*3 + (1 - p->scene_t)*head_thick*3,
-        .height = CELL_HEIGHT + head_thick*3 + (1 - p->scene_t)*head_thick*3,
-    };
-    rec.x = w/2 - rec.width/2;
-    rec.y = h/2 - rec.height/2 - p->tape_y_offset;
-    DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
-}
-
 void plug_update(Env env)
 {
     ClearBackground(BACKGROUND_COLOR);
 
     p->finished = task_update(p->task, env);
 
-    render_tape(env);
-    render_head(env);
+    float t = (float)p->head.index + p->head.offset;
+
+    for (size_t i = 0; i < p->tape.count; ++i) {
+        Rectangle rec = {
+            .x = i*(CELL_WIDTH + CELL_PAD) + env.screen_width/2 - CELL_WIDTH/2 - Lerp(-20.0, t, p->scene_t)*(CELL_WIDTH + CELL_PAD),
+            .y = env.screen_height/2 - CELL_HEIGHT/2 - p->tape_y_offset,
+            .width = CELL_WIDTH,
+            .height = CELL_HEIGHT,
+        };
+        DrawRectangleRec(rec, CELL_COLOR);
+
+        interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, p->tape.items[i].t, BACKGROUND_COLOR);
+    }
+
+    float head_thick = 20.0;
+    Rectangle rec = {
+        .width = CELL_WIDTH + head_thick*3 + (1 - p->scene_t)*head_thick*3,
+        .height = CELL_HEIGHT + head_thick*3 + (1 - p->scene_t)*head_thick*3,
+    };
+    rec.x = env.screen_width/2 - rec.width/2;
+    rec.y = env.screen_height/2 - rec.height/2 - p->tape_y_offset;
+    DrawRectangleLinesEx(rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
 }
 
 bool plug_finished(void)
