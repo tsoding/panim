@@ -61,19 +61,19 @@ static bool reload_libplug(const char *libplug_path)
     return true;
 }
 
-static void finish_ffmpeg_video_rendering(void)
+static void finish_ffmpeg_video_rendering(bool cancel)
 {
     SetTraceLogLevel(LOG_INFO);
-    ffmpeg_end_rendering(ffmpeg_video);
+    ffmpeg_end_rendering(ffmpeg_video, cancel);
     plug_reset();
     paused = true;
     ffmpeg_video = NULL;
 }
 
-static void finish_ffmpeg_audio_rendering(void)
+static void finish_ffmpeg_audio_rendering(bool cancel)
 {
     SetTraceLogLevel(LOG_INFO);
-    ffmpeg_end_rendering(ffmpeg_audio);
+    ffmpeg_end_rendering(ffmpeg_audio, cancel);
     plug_reset();
     paused = true;
     ffmpeg_audio = NULL;
@@ -182,8 +182,10 @@ int main(int argc, char **argv)
     while (!WindowShouldClose()) {
         BeginDrawing();
             if (ffmpeg_video) {
-                if (plug_finished() || IsKeyPressed(KEY_ESCAPE)) {
-                    finish_ffmpeg_video_rendering();
+                if (plug_finished()) {
+                    finish_ffmpeg_video_rendering(false);
+                } else if (IsKeyPressed(KEY_ESCAPE)) {
+                    finish_ffmpeg_video_rendering(true);
                 } else {
                     BeginTextureMode(screen);
                     plug_update(CLITERAL(Env) {
@@ -197,14 +199,16 @@ int main(int argc, char **argv)
 
                     Image image = LoadImageFromTexture(screen.texture);
                     if (!ffmpeg_send_frame_flipped(ffmpeg_video, image.data, image.width, image.height)) {
-                        finish_ffmpeg_video_rendering();
+                        finish_ffmpeg_video_rendering(true);
                     }
                     UnloadImage(image);
                 }
                 rendering_scene("Rendering Video");
             } else if (ffmpeg_audio) {
-                if (plug_finished() || IsKeyPressed(KEY_ESCAPE)) {
-                    finish_ffmpeg_audio_rendering();
+                if (plug_finished()) {
+                    finish_ffmpeg_audio_rendering(false);
+                } else if (IsKeyPressed(KEY_ESCAPE)) {
+                    finish_ffmpeg_audio_rendering(true);
                 } else {
                     BeginTextureMode(screen);
                     plug_update(CLITERAL(Env) {
@@ -226,14 +230,13 @@ int main(int argc, char **argv)
                     void *sound_data = (uint8_t*)ffmpeg_wave.data + frames_begin*frame_size;
                     size_t sound_size = (frames_end - frames_begin)*frame_size;
                     if (!ffmpeg_send_sound_samples(ffmpeg_audio, sound_data, sound_size)) {
-                        finish_ffmpeg_audio_rendering();
+                        finish_ffmpeg_audio_rendering(true);
                     }
                     ffmpeg_wave_cursor += frames_end - frames_begin;
                     size_t silence_size = (FFMPEG_SOUND_SPF - (frames_end - frames_begin))*frame_size;
                     if (!ffmpeg_send_sound_samples(ffmpeg_audio, silence, silence_size)) {
-                        finish_ffmpeg_audio_rendering();
+                        finish_ffmpeg_audio_rendering(true);
                     }
-
                 }
                 rendering_scene("Rendering Audio");
             } else {
