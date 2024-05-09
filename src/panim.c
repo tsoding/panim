@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include <raylib.h>
+#include <raymath.h>
 
 #include <dlfcn.h>
 
@@ -25,6 +26,7 @@
 // SPF - Samples Per Frame
 #define FFMPEG_SOUND_SPF (FFMPEG_SOUND_SAMPLE_RATE/FFMPEG_VIDEO_FPS)
 #define RENDERING_FONT_SIZE 78
+#define POPUP_DISAPPER_TIME 1.5f
 
 // The state of Panim Engine
 static bool paused = false;
@@ -36,7 +38,9 @@ static void *libplug = NULL;
 static Wave ffmpeg_wave = {0};
 static size_t ffmpeg_wave_cursor = 0;
 static uint8_t silence[FFMPEG_SOUND_SPF*FFMPEG_SOUND_SAMPLE_SIZE_BYTES*FFMPEG_SOUND_CHANNELS] = {0};
+
 static float delta_time_multiplier = 1.0f;
+static float delta_time_multiplier_popup = 0.0f;
 
 static bool reload_libplug(const char *libplug_path)
 {
@@ -263,12 +267,15 @@ int main(int argc, char **argv)
                     }
                     if (IsKeyPressed(KEY_PERIOD)) {
                         delta_time_multiplier += 0.1;
+                        delta_time_multiplier_popup = 1.0f;
                     }
                     if (IsKeyPressed(KEY_COMMA) && delta_time_multiplier > 0.0f) {
                         delta_time_multiplier -= 0.1;
+                        delta_time_multiplier_popup = 1.0f;
                     }
                     if (IsKeyPressed(KEY_ZERO)) {
                         delta_time_multiplier = 1.0;
+                        delta_time_multiplier_popup = 1.0f;
                     }
 
                     plug_update(CLITERAL(Env) {
@@ -278,6 +285,18 @@ int main(int argc, char **argv)
                         .rendering = false,
                         .play_sound = preview_play_sound,
                     });
+
+                    const char *text = TextFormat("Delta Time Multiplier: %.2fx", delta_time_multiplier);
+                    Vector2 text_size = MeasureTextEx(rendering_font, text, RENDERING_FONT_SIZE, 0);
+                    Vector2 position = {
+                        GetScreenWidth()/2 - text_size.x/2,
+                        GetScreenHeight()/2 - text_size.y/2,
+                    };
+                    DrawTextEx(rendering_font, text, Vector2Subtract(position, (Vector2){3, 3}), RENDERING_FONT_SIZE, 0, ColorAlpha(BLACK, delta_time_multiplier_popup));
+                    DrawTextEx(rendering_font, text, position, RENDERING_FONT_SIZE, 0, ColorAlpha(WHITE, delta_time_multiplier_popup));
+                    if (delta_time_multiplier_popup > 0.0f) {
+                        delta_time_multiplier_popup = (delta_time_multiplier_popup*POPUP_DISAPPER_TIME - GetFrameTime())/POPUP_DISAPPER_TIME;
+                    }
                 }
             }
         EndDrawing();
