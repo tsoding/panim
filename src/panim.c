@@ -36,6 +36,7 @@ static void *libplug = NULL;
 static Wave ffmpeg_wave = {0};
 static size_t ffmpeg_wave_cursor = 0;
 static uint8_t silence[FFMPEG_SOUND_SPF*FFMPEG_SOUND_SAMPLE_SIZE_BYTES*FFMPEG_SOUND_CHANNELS] = {0};
+static float delta_time_multiplier = 1.0f;
 
 static bool reload_libplug(const char *libplug_path)
 {
@@ -254,30 +255,26 @@ int main(int argc, char **argv)
                         reload_libplug(libplug_path);
                         plug_post_reload(state);
                     }
-
                     if (IsKeyPressed(KEY_SPACE)) {
                         paused = !paused;
                     }
-
                     if (IsKeyPressed(KEY_Q)) {
                         plug_reset();
                     }
-
-                    float delta_time = 0.0;
-                    if (paused) {
-                        if (IsKeyPressed(KEY_PERIOD)) {
-                            delta_time = FFMPEG_VIDEO_DELTA_TIME;
-                        } else {
-                            delta_time = 0.0f;
-                        }
-                    } else {
-                        delta_time = GetFrameTime();
+                    if (IsKeyPressed(KEY_PERIOD)) {
+                        delta_time_multiplier += 0.1;
+                    }
+                    if (IsKeyPressed(KEY_COMMA) && delta_time_multiplier > 0.0f) {
+                        delta_time_multiplier -= 0.1;
+                    }
+                    if (IsKeyPressed(KEY_ZERO)) {
+                        delta_time_multiplier = 1.0;
                     }
 
                     plug_update(CLITERAL(Env) {
                         .screen_width = GetScreenWidth(),
                         .screen_height = GetScreenHeight(),
-                        .delta_time = delta_time,
+                        .delta_time = paused ? 0.0 : GetFrameTime()*delta_time_multiplier,
                         .rendering = false,
                         .play_sound = preview_play_sound,
                     });
