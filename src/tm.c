@@ -480,26 +480,26 @@ void plug_post_reload(void *state)
     load_assets();
 }
 
-static void text_in_rec(Rectangle rec, const char *text, float t, Color color)
+static void text_in_rec(Rectangle rec, const char *text, float size, Color color)
 {
-    Vector2 cell_size = {rec.width, rec.height};
-    float font_size = FONT_SIZE*t;
+    Vector2 rec_size = {rec.width, rec.height};
+    float font_size = size;
     Vector2 text_size = MeasureTextEx(p->font, text, font_size, 0);
     Vector2 position = { .x = rec.x, .y = rec.y };
-    position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
+
+    position = Vector2Add(position, Vector2Scale(rec_size, 0.5));
     position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-    DrawTextEx(p->font, text, position, font_size, 0, ColorAlpha(color, t));
+
+    DrawTextEx(p->font, text, position, font_size, 0, color);
 }
 
-static void image_in_rec(Rectangle rec, Texture2D image, float t, Color color)
+static void image_in_rec(Rectangle rec, Texture2D image, float size, Color color)
 {
-    Vector2 cell_size = {rec.width, rec.height};
-
-    Vector2 image_size = {cell_size.x, cell_size.y};
-    image_size = Vector2Scale(image_size, t*0.52);
-
+    Vector2 rec_size = {rec.width, rec.height};
+    Vector2 image_size = {size, size};
     Vector2 position = {rec.x, rec.y};
-    position = Vector2Add(position, Vector2Scale(cell_size, 0.5));
+
+    position = Vector2Add(position, Vector2Scale(rec_size, 0.5));
     position = Vector2Subtract(position, Vector2Scale(image_size, 0.5));
 
     Rectangle source = { 0, 0, image.width, image.height };
@@ -507,22 +507,22 @@ static void image_in_rec(Rectangle rec, Texture2D image, float t, Color color)
     DrawTexturePro(image, source, dest, Vector2Zero(), 0.0, color);
 }
 
-static void symbol_in_rec(Rectangle rec, Symbol symbol, float t, Color color)
+static void symbol_in_rec(Rectangle rec, Symbol symbol, float size, float t, Color color)
 {
     switch (symbol.kind) {
         case SYMBOL_TEXT: {
-            text_in_rec(rec, symbol.text, t, color);
+            text_in_rec(rec, symbol.text, size*t, ColorAlpha(color, t));
         } break;
         case SYMBOL_IMAGE: {
-            image_in_rec(rec, p->images[symbol.image_index], t, WHITE);
+            image_in_rec(rec, p->images[symbol.image_index], size*t, ColorAlpha(WHITE, t));
         } break;
     }
 }
 
-static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_symbol, float t, Color color)
+static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_symbol, float size, float t, Color color)
 {
-    symbol_in_rec(rec, from_symbol, 1 - t, color);
-    symbol_in_rec(rec, to_symbol, t, color);
+    symbol_in_rec(rec, from_symbol, size, 1 - t, color);
+    symbol_in_rec(rec, to_symbol, size, t, color);
 }
 
 void plug_update(Env env)
@@ -561,7 +561,7 @@ void plug_update(Env env)
             };
             DrawRectangleRec(rec, CELL_COLOR);
 
-            interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, p->tape.items[i].t, BACKGROUND_COLOR);
+            interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, FONT_SIZE, p->tape.items[i].t, BACKGROUND_COLOR);
         }
 
         DrawRectangleLinesEx(head_rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
@@ -570,20 +570,21 @@ void plug_update(Env env)
 
     {
         float margin = 100.0;
-        float w = 200.0f;
-        float h = 200.0f;
+        float padding = CELL_PAD*0.5;
+        float w = 150.0f;
+        float h = 150.0f;
         float x = margin;
         float y = env.screen_height - h*p->table.count - margin;
         for (size_t i = 0; i < p->table.count; ++i) {
             for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
                 Rectangle rec = {
-                    .x = x + j*w,
-                    .y = y + i*h,
+                    .x = x + j*(w + padding),
+                    .y = y + i*(h + padding),
                     .width = w,
                     .height = h,
                 };
-                // DrawRectangleLinesEx(rec, 5, ColorAlpha(RED, p->table_t));
-                symbol_in_rec(rec, p->table.items[i].symbols[j], p->table_t, CELL_COLOR);
+                // DrawRectangleLinesEx(rec, 10, RED);
+                symbol_in_rec(rec, p->table.items[i].symbols[j], FONT_SIZE*0.75, p->table_t, CELL_COLOR);
             }
         }
     }
