@@ -558,21 +558,23 @@ void plug_update(Env env)
     };
     BeginMode2D(camera);
 
-        for (size_t i = 0; i < p->tape.count; ++i) {
-            Rectangle rec = {
-                .x = i*(CELL_WIDTH + CELL_PAD),
-                .y = 0,
-                .width = CELL_WIDTH,
-                .height = CELL_HEIGHT,
-            };
-            DrawRectangleRec(rec, CELL_COLOR);
+        // Tape
+        {
+            for (size_t i = 0; i < p->tape.count; ++i) {
+                Rectangle rec = {
+                    .x = i*(CELL_WIDTH + CELL_PAD),
+                    .y = 0,
+                    .width = CELL_WIDTH,
+                    .height = CELL_HEIGHT,
+                };
+                DrawRectangleRec(rec, CELL_COLOR);
 
-            interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, FONT_SIZE, p->tape.items[i].t, BACKGROUND_COLOR);
+                interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, FONT_SIZE, p->tape.items[i].t, BACKGROUND_COLOR);
+            }
         }
 
-        #if 0
-            DrawRectangleLinesEx(head_rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
-        #else
+        // Head
+        {
             Vector2 head_lines[][2] = {
                 {
                     {
@@ -622,70 +624,70 @@ void plug_update(Env env)
                 end_pos = Vector2Lerp(start_pos, end_pos, p->scene_t);
                 DrawLineEx(start_pos, end_pos, head_thick*p->scene_t, HEAD_COLOR);
             }
-        #endif
+        }
 
-    EndMode2D();
+        // Table
+        {
+            float margin = 180.0;
+            float padding = CELL_PAD*0.5;
+            float symbol_size = FONT_SIZE*0.75;
+            float field_width = 20.0f*9;
+            float field_height = 15.0f*9;
+            float x = head_rec.x + head_rec.width/2 - ((field_width + padding)*COUNT_RULE_SYMBOLS - padding)/2;
+            float y = head_rec.y + head_rec.height + margin;
 
-    {
-        float margin = 120.0;
-        float padding = CELL_PAD*0.5;
-        float w = 20.0f*9;
-        float h = 15.0f*9;
-        float x = margin;
-        float y = env.screen_height - h*p->table.count - margin;
-        float symbol_size = FONT_SIZE*0.75;
+            for (size_t i = 0; i < p->table.count; ++i) {
+                for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
+                    Rectangle rec = {
+                        .x = x + j*(field_width + padding),
+                        .y = y + i*(field_height + padding),
+                        .width = field_width,
+                        .height = field_height,
+                    };
+                    // DrawRectangleLinesEx(rec, 10, RED);
+                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->table_symbols_t, ColorAlpha(CELL_COLOR, p->table_symbols_t));
+                }
+            }
 
-        for (size_t i = 0; i < p->table.count; ++i) {
-            for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
-                Rectangle rec = {
-                    .x = x + j*(w + padding),
-                    .y = y + i*(h + padding),
-                    .width = w,
-                    .height = h,
+            float thick = 7.0*p->table_lines_t;
+            Color color = ColorAlpha(CELL_COLOR, p->table_lines_t);
+            for (size_t i = 0; i < p->table.count + 1; ++i) {
+                Vector2 startPos = {
+                    .x = x - thick/2 - padding/2,
+                    .y = y + i*(field_height + padding) - padding/2,
                 };
-                // DrawRectangleLinesEx(rec, 10, RED);
-                symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->table_symbols_t, ColorAlpha(CELL_COLOR, p->table_symbols_t));
+                Vector2 endPos = {
+                    .x = x + (field_width + padding)*COUNT_RULE_SYMBOLS + thick/2 - padding/2,
+                    .y = y + i*(field_height + padding) - padding/2,
+                };
+                if (i >= p->table.count) {
+                    Vector2 t = startPos;
+                    startPos = endPos;
+                    endPos = t;
+                }
+                endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
+                DrawLineEx(startPos, endPos, thick, color);
             }
-        }
 
-        float thick = 7.0*p->table_lines_t;
-        Color color = ColorAlpha(CELL_COLOR, p->table_lines_t);
-        for (size_t i = 0; i < p->table.count + 1; ++i) {
-            Vector2 startPos = {
-                .x = x - thick/2 - padding/2,
-                .y = y + i*(h + padding) - padding/2,
-            };
-            Vector2 endPos = {
-                .x = x + (w + padding)*COUNT_RULE_SYMBOLS + thick/2 - padding/2,
-                .y = y + i*(h + padding) - padding/2,
-            };
-            if (i >= p->table.count) {
-                Vector2 t = startPos;
-                startPos = endPos;
-                endPos = t;
+            for (size_t i = 0; i < COUNT_RULE_SYMBOLS + 1; ++i) {
+                Vector2 startPos = {
+                    .x = x + i*(field_width + padding) - padding/2,
+                    .y = y - padding/2,
+                };
+                Vector2 endPos = {
+                    .x = x + i*(field_width + padding) - padding/2,
+                    .y = y + (field_height + padding)*p->table.count - padding/2,
+                };
+                if (i >= COUNT_RULE_SYMBOLS) {
+                    Vector2 t = startPos;
+                    startPos = endPos;
+                    endPos = t;
+                }
+                endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
+                DrawLineEx(startPos, endPos, thick, color);
             }
-            endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
-            DrawLineEx(startPos, endPos, thick, color);
         }
-
-        for (size_t i = 0; i < COUNT_RULE_SYMBOLS + 1; ++i) {
-            Vector2 startPos = {
-                .x = x + i*(w + padding) - padding/2,
-                .y = y - padding/2,
-            };
-            Vector2 endPos = {
-                .x = x + i*(w + padding) - padding/2,
-                .y = y + (h + padding)*p->table.count - padding/2,
-            };
-            if (i >= COUNT_RULE_SYMBOLS) {
-                Vector2 t = startPos;
-                startPos = endPos;
-                endPos = t;
-            }
-            endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
-            DrawLineEx(startPos, endPos, thick, color);
-        }
-    }
+    EndMode2D();
 }
 
 bool plug_finished(void)
