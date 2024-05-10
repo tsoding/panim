@@ -394,6 +394,7 @@ static Task task_outro(Arena *a, float duration)
 {
     return task_group(a,
         task_move_scalar(a, &p->scene_t, 0.0, duration),
+        task_move_scalar(a, &p->tape_y_offset, 0.0, duration),
         task_move_scalar(a, &p->table_lines_t, 0.0, duration),
         task_move_scalar(a, &p->table_symbols_t, 0.0, duration));
 }
@@ -512,22 +513,22 @@ static void image_in_rec(Rectangle rec, Texture2D image, float size, Color color
     DrawTexturePro(image, source, dest, Vector2Zero(), 0.0, color);
 }
 
-static void symbol_in_rec(Rectangle rec, Symbol symbol, float size, float t, Color color)
+static void symbol_in_rec(Rectangle rec, Symbol symbol, float size, Color color)
 {
     switch (symbol.kind) {
         case SYMBOL_TEXT: {
-            text_in_rec(rec, symbol.text, size*t, ColorAlpha(color, t));
+            text_in_rec(rec, symbol.text, size, color);
         } break;
         case SYMBOL_IMAGE: {
-            image_in_rec(rec, p->images[symbol.image_index], size*t, ColorAlpha(WHITE, t));
+            image_in_rec(rec, p->images[symbol.image_index], size, WHITE);
         } break;
     }
 }
 
 static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_symbol, float size, float t, Color color)
 {
-    symbol_in_rec(rec, from_symbol, size, 1 - t, color);
-    symbol_in_rec(rec, to_symbol, size, t, color);
+    symbol_in_rec(rec, from_symbol, size*(1 - t), ColorAlpha(color, 1 - t));
+    symbol_in_rec(rec, to_symbol, size*t, ColorAlpha(color, t));
 }
 
 void plug_update(Env env)
@@ -569,7 +570,59 @@ void plug_update(Env env)
             interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, FONT_SIZE, p->tape.items[i].t, BACKGROUND_COLOR);
         }
 
-        DrawRectangleLinesEx(head_rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
+        #if 0
+            DrawRectangleLinesEx(head_rec, head_thick, ColorAlpha(HEAD_COLOR, p->scene_t));
+        #else
+            Vector2 head_lines[][2] = {
+                {
+                    {
+                        head_rec.x,
+                        head_rec.y + head_thick*p->scene_t/2
+                    },
+                    {
+                        head_rec.x + head_rec.width,
+                        head_rec.y + head_thick*p->scene_t/2
+                    },
+                },
+                {
+                    {
+                        head_rec.x + head_rec.width,
+                        head_rec.y + head_rec.height - head_thick*p->scene_t/2
+                    },
+                    {
+                        head_rec.x,
+                        head_rec.y + head_rec.height - head_thick*p->scene_t/2
+                    },
+                },
+                {
+                    {
+                        head_rec.x + head_thick*p->scene_t/2,
+                        head_rec.y,
+                    },
+                    {
+                        head_rec.x + head_thick*p->scene_t/2,
+                        head_rec.y + head_rec.height,
+                    },
+                },
+                {
+                    {
+                        head_rec.x + head_rec.width - head_thick*p->scene_t/2,
+                        head_rec.y + head_rec.height,
+                    },
+                    {
+                        head_rec.x + head_rec.width - head_thick*p->scene_t/2,
+                        head_rec.y,
+                    },
+                },
+            };
+
+            for (size_t i = 0; i < NOB_ARRAY_LEN(head_lines); ++i) {
+                Vector2 start_pos = head_lines[i][0];
+                Vector2 end_pos   = head_lines[i][1];
+                end_pos = Vector2Lerp(start_pos, end_pos, p->scene_t);
+                DrawLineEx(start_pos, end_pos, head_thick*p->scene_t, HEAD_COLOR);
+            }
+        #endif
 
     EndMode2D();
 
@@ -591,11 +644,12 @@ void plug_update(Env env)
                     .height = h,
                 };
                 // DrawRectangleLinesEx(rec, 10, RED);
-                symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size, p->table_symbols_t, CELL_COLOR);
+                symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->table_symbols_t, ColorAlpha(CELL_COLOR, p->table_symbols_t));
             }
         }
 
         float thick = 7.0*p->table_lines_t;
+        Color color = ColorAlpha(CELL_COLOR, p->table_lines_t);
         for (size_t i = 0; i < p->table.count + 1; ++i) {
             Vector2 startPos = {
                 .x = x - thick/2 - padding/2,
@@ -605,8 +659,13 @@ void plug_update(Env env)
                 .x = x + (w + padding)*COUNT_RULE_SYMBOLS + thick/2 - padding/2,
                 .y = y + i*(h + padding) - padding/2,
             };
+            if (i >= p->table.count) {
+                Vector2 t = startPos;
+                startPos = endPos;
+                endPos = t;
+            }
             endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
-            DrawLineEx(startPos, endPos, thick, ColorAlpha(CELL_COLOR, p->table_lines_t));
+            DrawLineEx(startPos, endPos, thick, color);
         }
 
         for (size_t i = 0; i < COUNT_RULE_SYMBOLS + 1; ++i) {
@@ -618,8 +677,13 @@ void plug_update(Env env)
                 .x = x + i*(w + padding) - padding/2,
                 .y = y + (h + padding)*p->table.count - padding/2,
             };
+            if (i >= COUNT_RULE_SYMBOLS) {
+                Vector2 t = startPos;
+                startPos = endPos;
+                endPos = t;
+            }
             endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
-            DrawLineEx(startPos, endPos, thick, ColorAlpha(CELL_COLOR, p->table_lines_t));
+            DrawLineEx(startPos, endPos, thick, color);
         }
     }
 }
