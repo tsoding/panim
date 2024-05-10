@@ -117,7 +117,8 @@ typedef struct {
     Tape tape;
     float scene_t;
     float tape_y_offset;
-    float table_t;
+    float table_lines_t;
+    float table_symbols_t;
     Task task;
     bool finished;
 
@@ -393,7 +394,8 @@ static Task task_outro(Arena *a, float duration)
 {
     return task_group(a,
         task_move_scalar(a, &p->scene_t, 0.0, duration),
-        task_move_scalar(a, &p->table_t, 0.0, duration));
+        task_move_scalar(a, &p->table_lines_t, 0.0, duration),
+        task_move_scalar(a, &p->table_symbols_t, 0.0, duration));
 }
 
 void plug_reset(void)
@@ -412,14 +414,16 @@ void plug_reset(void)
 
     p->scene_t = 0;
     p->tape_y_offset = 0.0f;
-    p->table_t = 0;
+    p->table_lines_t = 0;
+    p->table_symbols_t = 0;
 
     p->task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
         task_wait(a, 0.75),
         task_move_scalar(a, &p->tape_y_offset, -250.0, 0.5),
         task_wait(a, 0.75),
-        task_move_scalar(a, &p->table_t, 1.0, 0.5),
+        task_move_scalar(a, &p->table_lines_t, 1.0, 0.5),
+        task_move_scalar(a, &p->table_symbols_t, 1.0, 0.5),
 
         task_wait(a, 0.75),
         task_write_head(a, symbol_text(a, "1")),
@@ -447,7 +451,8 @@ void plug_reset(void)
         task_write_all(a, symbol_text(a, "0")),
         task_wait(a, 0.5),
         task_outro(a, INTRO_DURATION),
-        task_wait(a, 0.5));
+        task_wait(a, 0.5)
+        );
     p->finished = false;
 }
 
@@ -569,12 +574,14 @@ void plug_update(Env env)
     EndMode2D();
 
     {
-        float margin = 100.0;
+        float margin = 120.0;
         float padding = CELL_PAD*0.5;
-        float w = 150.0f;
-        float h = 150.0f;
+        float w = 20.0f*9;
+        float h = 15.0f*9;
         float x = margin;
         float y = env.screen_height - h*p->table.count - margin;
+        float symbol_size = FONT_SIZE*0.75;
+
         for (size_t i = 0; i < p->table.count; ++i) {
             for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
                 Rectangle rec = {
@@ -584,8 +591,35 @@ void plug_update(Env env)
                     .height = h,
                 };
                 // DrawRectangleLinesEx(rec, 10, RED);
-                symbol_in_rec(rec, p->table.items[i].symbols[j], FONT_SIZE*0.75, p->table_t, CELL_COLOR);
+                symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size, p->table_symbols_t, CELL_COLOR);
             }
+        }
+
+        float thick = 7.0*p->table_lines_t;
+        for (size_t i = 0; i < p->table.count + 1; ++i) {
+            Vector2 startPos = {
+                .x = x - thick/2 - padding/2,
+                .y = y + i*(h + padding) - padding/2,
+            };
+            Vector2 endPos = {
+                .x = x + (w + padding)*COUNT_RULE_SYMBOLS + thick/2 - padding/2,
+                .y = y + i*(h + padding) - padding/2,
+            };
+            endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
+            DrawLineEx(startPos, endPos, thick, ColorAlpha(CELL_COLOR, p->table_lines_t));
+        }
+
+        for (size_t i = 0; i < COUNT_RULE_SYMBOLS + 1; ++i) {
+            Vector2 startPos = {
+                .x = x + i*(w + padding) - padding/2,
+                .y = y - padding/2,
+            };
+            Vector2 endPos = {
+                .x = x + i*(w + padding) - padding/2,
+                .y = y + (h + padding)*p->table.count - padding/2,
+            };
+            endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
+            DrawLineEx(startPos, endPos, thick, ColorAlpha(CELL_COLOR, p->table_lines_t));
         }
     }
 }
