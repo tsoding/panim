@@ -542,7 +542,7 @@ static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_sy
     symbol_in_rec(rec, to_symbol, size*t, ColorAlpha(color, t));
 }
 
-static void render_table(float x, float y, float field_padding, float field_width, float field_height, size_t table_columns, size_t table_rows, float t)
+static void render_table_lines(float x, float y, float field_padding, float field_width, float field_height, size_t table_columns, size_t table_rows, float t)
 {
     float thick = 7.0*t;
     Color color = ColorAlpha(CELL_COLOR, t);
@@ -701,7 +701,7 @@ void plug_update(Env env)
                 }
             }
 
-            render_table(x, y, field_padding, field_width, field_height, COUNT_RULE_SYMBOLS, p->table.count, p->table_lines_t);
+            render_table_lines(x, y, field_padding, field_width, field_height, COUNT_RULE_SYMBOLS, p->table.count, p->table_lines_t);
         }
     EndMode2D();
 }
