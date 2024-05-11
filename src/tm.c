@@ -441,10 +441,12 @@ void plug_reset(void)
         task_wait(a, 0.75),
         task_move_scalar(a, &p->tape_y_offset, -250.0, 0.5),
         task_wait(a, 0.75),
-        task_move_scalar(a, &p->table_lines_t, 1.0, 0.5),
-        task_move_scalar(a, &p->table_symbols_t, 1.0, 0.5),
-        task_move_scalar(a, &p->head.state_t, 1.0, 0.5),
-        task_move_scalar(a, &p->table_head_t, 1.0, 0.5),
+
+        task_seq(a,
+            task_move_scalar(a, &p->table_lines_t, 1.0, 0.5),
+            task_move_scalar(a, &p->table_symbols_t, 1.0, 0.5),
+            task_move_scalar(a, &p->head.state_t, 1.0, 0.5),
+            task_move_scalar(a, &p->table_head_t, 1.0, 0.5)),
 
         task_wait(a, 0.75),
         task_write_head(a, symbol_text(a, "1")),
@@ -641,14 +643,18 @@ void plug_update(Env env)
         // Head
         {
             Rectangle state_rec = {
-                .x = head_rec.x,
-                .y = head_rec.y + head_rec.height,
                 .width = head_rec.width,
                 .height = head_rec.height*0.5,
             };
-            symbol_in_rec(state_rec, (Symbol){.kind = SYMBOL_TEXT, .text = "Inc"}, FONT_SIZE*0.75*p->head.state_t, CELL_COLOR);
-            render_table_lines(head_rec.x, head_rec.y, head_rec.width, head_rec.height + state_rec.height*p->head.state_t, 1, 1, p->scene_t, head_thick, HEAD_COLOR);
-            // DrawRectangleLinesEx(state_rec, 5, RED);
+            state_rec.x = head_rec.x,
+            state_rec.y = head_rec.y + head_rec.height - state_rec.height*(1 - p->head.state_t),
+            // DrawRectangleLinesEx(state_rec, 10, RED);
+            symbol_in_rec(state_rec, (Symbol){.kind = SYMBOL_TEXT, .text = "Inc"}, FONT_SIZE*0.75, ColorAlpha(CELL_COLOR, p->head.state_t));
+            float h = head_rec.height;
+            if (state_rec.y + state_rec.height > head_rec.y + head_rec.height) {
+                h += state_rec.y + state_rec.height - (head_rec.y + head_rec.height);
+            }
+            render_table_lines(head_rec.x, head_rec.y, head_rec.width, h, 1, 1, p->scene_t, head_thick, HEAD_COLOR);
         }
 
         // Table
