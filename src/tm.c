@@ -542,10 +542,9 @@ static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_sy
     symbol_in_rec(rec, to_symbol, size*t, ColorAlpha(color, t));
 }
 
-static void render_table_lines(float x, float y, float field_width, float field_height, size_t table_columns, size_t table_rows, float t)
+static void render_table_lines(float x, float y, float field_width, float field_height, size_t table_columns, size_t table_rows, float t, float thick, Color color)
 {
-    float thick = 7.0*t;
-    Color color = ColorAlpha(CELL_COLOR, t);
+    thick *= t;
     for (size_t i = 0; i < table_rows + 1; ++i) {
         Vector2 start_pos = {
             .x = x - thick/2,
@@ -573,7 +572,7 @@ static void render_table_lines(float x, float y, float field_width, float field_
             .x = x + i*field_width,
             .y = y + field_height*table_rows,
         };
-        if (i >= table_columns) {
+        if (i > 0) {
             Vector2 t = start_pos;
             start_pos = end_pos;
             end_pos = t;
@@ -626,81 +625,43 @@ void plug_update(Env env)
         }
 
         // Head
-        {
-            Vector2 head_lines[][2] = {
-                {
-                    {
-                        head_rec.x,
-                        head_rec.y + head_thick*p->scene_t/2
-                    },
-                    {
-                        head_rec.x + head_rec.width,
-                        head_rec.y + head_thick*p->scene_t/2
-                    },
-                },
-                {
-                    {
-                        head_rec.x + head_rec.width,
-                        head_rec.y + head_rec.height - head_thick*p->scene_t/2
-                    },
-                    {
-                        head_rec.x,
-                        head_rec.y + head_rec.height - head_thick*p->scene_t/2
-                    },
-                },
-                {
-                    {
-                        head_rec.x + head_thick*p->scene_t/2,
-                        head_rec.y,
-                    },
-                    {
-                        head_rec.x + head_thick*p->scene_t/2,
-                        head_rec.y + head_rec.height,
-                    },
-                },
-                {
-                    {
-                        head_rec.x + head_rec.width - head_thick*p->scene_t/2,
-                        head_rec.y + head_rec.height,
-                    },
-                    {
-                        head_rec.x + head_rec.width - head_thick*p->scene_t/2,
-                        head_rec.y,
-                    },
-                },
-            };
-
-            for (size_t i = 0; i < NOB_ARRAY_LEN(head_lines); ++i) {
-                Vector2 start_pos = head_lines[i][0];
-                Vector2 end_pos   = head_lines[i][1];
-                end_pos = Vector2Lerp(start_pos, end_pos, p->scene_t);
-                DrawLineEx(start_pos, end_pos, head_thick*p->scene_t, HEAD_COLOR);
-            }
-        }
+        render_table_lines(head_rec.x, head_rec.y, head_rec.width, head_rec.height, 1, 1, p->scene_t, head_thick, HEAD_COLOR);
 
         // Table
         {
-            float margin = 180.0;
+            float top_margin = 180.0;
+            float right_margin = 30.0;
             float symbol_size = FONT_SIZE*0.75;
             float field_width = 20.0f*9 + CELL_PAD*0.5;
             float field_height = 15.0f*9 + CELL_PAD*0.5;
-            float x = head_rec.x + head_rec.width/2 - field_width*COUNT_RULE_SYMBOLS/2;
-            float y = head_rec.y + head_rec.height + margin;
+            float x = head_rec.x + head_rec.width/2 - (field_width*COUNT_RULE_SYMBOLS + right_margin)/2;
+            float y = head_rec.y + head_rec.height + top_margin;
 
             for (size_t i = 0; i < p->table.count; ++i) {
-                for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
+                for (size_t j = 0; j < 2; ++j) {
                     Rectangle rec = {
                         .x = x + j*field_width,
                         .y = y + i*field_height,
                         .width = field_width,
                         .height = field_height,
                     };
-                    // DrawRectangleLinesEx(rec, 10, RED);
+                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->table_symbols_t, ColorAlpha(CELL_COLOR, p->table_symbols_t));
+                }
+
+                for (size_t j = 2; j < COUNT_RULE_SYMBOLS; ++j) {
+                    Rectangle rec = {
+                        .x = x + j*field_width + right_margin,
+                        .y = y + i*field_height,
+                        .width = field_width,
+                        .height = field_height,
+                    };
                     symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->table_symbols_t, ColorAlpha(CELL_COLOR, p->table_symbols_t));
                 }
             }
 
-            render_table_lines(x, y, field_width, field_height, COUNT_RULE_SYMBOLS, p->table.count, p->table_lines_t);
+            render_table_lines(x, y, field_width, field_height, 2, p->table.count, p->table_lines_t, 7.0f, CELL_COLOR);
+
+            render_table_lines(x + 2*field_width + right_margin, y, field_width, field_height, 3, p->table.count, p->table_lines_t, 7.0f, CELL_COLOR);
         }
     EndMode2D();
 }
