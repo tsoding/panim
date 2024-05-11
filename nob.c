@@ -69,15 +69,8 @@ bool build_plug_cxx(bool force, Nob_Cmd *cmd, const char *source_path, const cha
     return true;
 }
 
-bool build_panim(bool force, Nob_Cmd *cmd)
+bool build_exe(bool force, Nob_Cmd *cmd, const char **input_paths, size_t input_paths_len, const char *output_path)
 {
-    const char *output_path = BUILD_DIR"/panim";
-    const char *input_paths[] = {
-        SRC_DIR"/panim.c",
-        SRC_DIR"/ffmpeg_linux.c"
-    };
-    size_t input_paths_len = NOB_ARRAY_LEN(input_paths);
-
     int rebuild_is_needed = nob_needs_rebuild(output_path, input_paths, input_paths_len);
     if (rebuild_is_needed < 0) return false;
 
@@ -119,7 +112,16 @@ int main(int argc, char **argv)
     if (!build_plug_c(force, &cmd, SRC_DIR"/template.c", BUILD_DIR"/libtemplate.so")) return 1;
     if (!build_plug_c(force, &cmd, SRC_DIR"/squares.c", BUILD_DIR"/libsquare.so")) return 1;
     if (!build_plug_cxx(force, &cmd, SRC_DIR"/probe.cpp", BUILD_DIR"/libprobe.so")) return 1;
-    if (!build_panim(force, &cmd)) return 1;
+
+    {
+        const char *output_path = BUILD_DIR"/panim";
+        const char *input_paths[] = {
+            SRC_DIR"/panim.c",
+            SRC_DIR"/ffmpeg_linux.c"
+        };
+        size_t input_paths_len = NOB_ARRAY_LEN(input_paths);
+        if (!build_exe(force, &cmd, input_paths, input_paths_len, output_path)) return 1;
+    }
 
     return 0;
 }

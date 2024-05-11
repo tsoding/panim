@@ -106,6 +106,7 @@ typedef struct {
 typedef struct {
     int index;
     float offset;
+    Cell state;
 } Head;
 
 typedef struct {
@@ -333,9 +334,14 @@ static void load_assets(void)
     Arena *a = &p->arena_assets;
     arena_reset(a);
 
-    p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, NULL, 0);
+    int arrows_count = 0;
+    int *arrows = LoadCodepoints("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:)→←", &arrows_count);
+    p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, arrows, arrows_count);
+    UnloadCodepoints(arrows);
     GenTextureMipmaps(&p->font.texture);
     SetTextureFilter(p->font.texture, TEXTURE_FILTER_BILINEAR);
+
+    // TODO: create a table mapping from Image_Index to the File Path
     p->images[IMAGE_EGGPLANT] = LoadTexture("./assets/images/eggplant.png");
     p->images[IMAGE_100] = LoadTexture("./assets/images/100.png");
     p->images[IMAGE_FIRE] = LoadTexture("./assets/images/fire.png");
@@ -354,13 +360,13 @@ static void load_assets(void)
             symbol_text(a, "Inc"),
             symbol_text(a, "0"),
             symbol_text(a, "1"),
-            symbol_text(a, "->"),
+            symbol_text(a, "→"),
             symbol_text(a, "Halt"));
         table(
             symbol_text(a, "Inc"),
             symbol_text(a, "1"),
             symbol_text(a, "0"),
-            symbol_text(a, "->"),
+            symbol_text(a, "→"),
             symbol_text(a, "Inc"));
     }
 
