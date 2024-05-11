@@ -115,7 +115,9 @@ typedef struct {
 typedef struct {
     int index;
     float offset;
+
     Cell state;
+    float state_t;
 } Head;
 
 typedef struct {
@@ -129,6 +131,7 @@ typedef struct {
     float tape_y_offset;
     float table_lines_t;
     float table_symbols_t;
+    float table_head_t;
     Task task;
     bool finished;
 
@@ -407,7 +410,9 @@ static Task task_outro(Arena *a, float duration)
         task_move_scalar(a, &p->scene_t, 0.0, duration),
         task_move_scalar(a, &p->tape_y_offset, 0.0, duration),
         task_move_scalar(a, &p->table_lines_t, 0.0, duration),
-        task_move_scalar(a, &p->table_symbols_t, 0.0, duration));
+        task_move_scalar(a, &p->table_symbols_t, 0.0, duration),
+        task_move_scalar(a, &p->table_head_t, 0.0, duration),
+        task_move_scalar(a, &p->head.state_t, 0.0, duration));
 }
 
 void plug_reset(void)
@@ -417,6 +422,7 @@ void plug_reset(void)
 
     p->head.index = 0;
     p->head.offset = 0;
+    p->head.state_t = 0;
     p->tape.count = 0;
     Symbol zero = symbol_text(a, "0");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
@@ -428,6 +434,7 @@ void plug_reset(void)
     p->tape_y_offset = 0.0f;
     p->table_lines_t = 0;
     p->table_symbols_t = 0;
+    p->table_head_t = 0;
 
     p->task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
@@ -436,6 +443,8 @@ void plug_reset(void)
         task_wait(a, 0.75),
         task_move_scalar(a, &p->table_lines_t, 1.0, 0.5),
         task_move_scalar(a, &p->table_symbols_t, 1.0, 0.5),
+        task_move_scalar(a, &p->head.state_t, 1.0, 0.5),
+        task_move_scalar(a, &p->table_head_t, 1.0, 0.5),
 
         task_wait(a, 0.75),
         task_write_head(a, symbol_text(a, "1")),
@@ -542,6 +551,11 @@ static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_sy
     symbol_in_rec(rec, to_symbol, size*t, ColorAlpha(color, t));
 }
 
+static void cell_in_rec(Rectangle rec, Cell cell, Color color)
+{
+    interp_symbol_in_rec(rec, cell.symbol_a, cell.symbol_b, FONT_SIZE, cell.t, color);
+}
+
 static void render_table_lines(float x, float y, float field_width, float field_height, size_t table_columns, size_t table_rows, float t, float thick, Color color)
 {
     thick *= t;
@@ -589,9 +603,10 @@ void plug_update(Env env)
     p->finished = task_update(p->task, env);
 
     float head_thick = 20.0;
+    float head_padding = head_thick*2.5;
     Rectangle head_rec = {
-        .width = CELL_WIDTH + head_thick*3 + (1 - p->scene_t)*head_thick*3,
-        .height = CELL_HEIGHT + head_thick*3 + (1 - p->scene_t)*head_thick*3,
+        .width = CELL_WIDTH + head_padding,
+        .height = CELL_HEIGHT + head_padding,
     };
     float t = ((float)p->head.index + p->head.offset);
     head_rec.x = CELL_WIDTH/2 - head_rec.width/2 + Lerp(-20.0, t, p->scene_t)*(CELL_WIDTH + CELL_PAD);
@@ -619,18 +634,27 @@ void plug_update(Env env)
                     .height = CELL_HEIGHT,
                 };
                 DrawRectangleRec(rec, CELL_COLOR);
-
-                interp_symbol_in_rec(rec, p->tape.items[i].symbol_a, p->tape.items[i].symbol_b, FONT_SIZE, p->tape.items[i].t, BACKGROUND_COLOR);
+                cell_in_rec(rec, p->tape.items[i], BACKGROUND_COLOR);
             }
         }
 
         // Head
-        render_table_lines(head_rec.x, head_rec.y, head_rec.width, head_rec.height, 1, 1, p->scene_t, head_thick, HEAD_COLOR);
+        {
+            Rectangle state_rec = {
+                .x = head_rec.x,
+                .y = head_rec.y + head_rec.height,
+                .width = head_rec.width,
+                .height = head_rec.height*0.5,
+            };
+            symbol_in_rec(state_rec, (Symbol){.kind = SYMBOL_TEXT, .text = "Inc"}, FONT_SIZE*0.75*p->head.state_t, CELL_COLOR);
+            render_table_lines(head_rec.x, head_rec.y, head_rec.width, head_rec.height + state_rec.height*p->head.state_t, 1, 1, p->scene_t, head_thick, HEAD_COLOR);
+            // DrawRectangleLinesEx(state_rec, 5, RED);
+        }
 
         // Table
         {
-            float top_margin = 180.0;
-            float right_margin = 30.0;
+            float top_margin = 250.0;
+            float right_margin = 70.0;
             float symbol_size = FONT_SIZE*0.75;
             float field_width = 20.0f*9 + CELL_PAD*0.5;
             float field_height = 15.0f*9 + CELL_PAD*0.5;
@@ -662,6 +686,8 @@ void plug_update(Env env)
             render_table_lines(x, y, field_width, field_height, 2, p->table.count, p->table_lines_t, 7.0f, CELL_COLOR);
 
             render_table_lines(x + 2*field_width + right_margin, y, field_width, field_height, 3, p->table.count, p->table_lines_t, 7.0f, CELL_COLOR);
+
+            render_table_lines(x - head_padding/2, y - head_padding/2, 2*field_width + head_padding, field_height + head_padding, 1, 1, p->table_head_t, head_thick, HEAD_COLOR);
         }
     EndMode2D();
 }
