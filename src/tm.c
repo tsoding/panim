@@ -45,6 +45,15 @@ typedef enum {
     COUNT_IMAGES,
 } Image_Index;
 
+static_assert(COUNT_IMAGES == 5, "Amount of images is updated");
+static const char *image_file_paths[COUNT_IMAGES] = {
+    [IMAGE_EGGPLANT] = "./assets/images/eggplant.png",
+    [IMAGE_100] = "./assets/images/100.png",
+    [IMAGE_FIRE] = "./assets/images/fire.png",
+    [IMAGE_JOY] = "./assets/images/joy.png",
+    [IMAGE_OK] = "./assets/images/ok.png",
+};
+
 typedef enum {
     SYMBOL_TEXT,
     SYMBOL_IMAGE,
@@ -335,22 +344,18 @@ static void load_assets(void)
     arena_reset(a);
 
     int arrows_count = 0;
-    int *arrows = LoadCodepoints("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:)→←", &arrows_count);
+    int *arrows = LoadCodepoints("?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:)→←", &arrows_count);
     p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, arrows, arrows_count);
     UnloadCodepoints(arrows);
     GenTextureMipmaps(&p->font.texture);
     SetTextureFilter(p->font.texture, TEXTURE_FILTER_BILINEAR);
 
-    // TODO: create a table mapping from Image_Index to the File Path
-    p->images[IMAGE_EGGPLANT] = LoadTexture("./assets/images/eggplant.png");
-    p->images[IMAGE_100] = LoadTexture("./assets/images/100.png");
-    p->images[IMAGE_FIRE] = LoadTexture("./assets/images/fire.png");
-    p->images[IMAGE_JOY] = LoadTexture("./assets/images/joy.png");
-    p->images[IMAGE_OK] = LoadTexture("./assets/images/ok.png");
     for (size_t i = 0; i < COUNT_IMAGES; ++i) {
+        p->images[i] = LoadTexture(image_file_paths[i]);
         GenTextureMipmaps(&p->images[i]);
         SetTextureFilter(p->images[i], TEXTURE_FILTER_BILINEAR);
     }
+
     p->write_wave = LoadWave("./assets/sounds/plant-bomb.wav");
     p->write_sound = LoadSoundFromWave(p->write_wave);
 
