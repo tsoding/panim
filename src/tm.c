@@ -542,6 +542,47 @@ static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_sy
     symbol_in_rec(rec, to_symbol, size*t, ColorAlpha(color, t));
 }
 
+static void render_table(float x, float y, float field_padding, float field_width, float field_height, size_t table_columns, size_t table_rows, float t)
+{
+    float thick = 7.0*t;
+    Color color = ColorAlpha(CELL_COLOR, t);
+    for (size_t i = 0; i < table_rows + 1; ++i) {
+        Vector2 start_pos = {
+            .x = x - thick/2 - field_padding/2,
+            .y = y + i*(field_height + field_padding) - field_padding/2,
+        };
+        Vector2 end_pos = {
+            .x = x + (field_width + field_padding)*table_columns + thick/2 - field_padding/2,
+            .y = y + i*(field_height + field_padding) - field_padding/2,
+        };
+        if (i >= table_rows) {
+            Vector2 t = start_pos;
+            start_pos = end_pos;
+            end_pos = t;
+        }
+        end_pos = Vector2Lerp(start_pos, end_pos, t);
+        DrawLineEx(start_pos, end_pos, thick, color);
+    }
+
+    for (size_t i = 0; i < table_columns + 1; ++i) {
+        Vector2 start_pos = {
+            .x = x + i*(field_width + field_padding) - field_padding/2,
+            .y = y - field_padding/2,
+        };
+        Vector2 end_pos = {
+            .x = x + i*(field_width + field_padding) - field_padding/2,
+            .y = y + (field_height + field_padding)*table_rows - field_padding/2,
+        };
+        if (i >= table_columns) {
+            Vector2 t = start_pos;
+            start_pos = end_pos;
+            end_pos = t;
+        }
+        end_pos = Vector2Lerp(start_pos, end_pos, t);
+        DrawLineEx(start_pos, end_pos, thick, color);
+    }
+}
+
 void plug_update(Env env)
 {
     ClearBackground(BACKGROUND_COLOR);
@@ -640,18 +681,18 @@ void plug_update(Env env)
         // Table
         {
             float margin = 180.0;
-            float padding = CELL_PAD*0.5;
+            float field_padding = CELL_PAD*0.5;
             float symbol_size = FONT_SIZE*0.75;
             float field_width = 20.0f*9;
             float field_height = 15.0f*9;
-            float x = head_rec.x + head_rec.width/2 - ((field_width + padding)*COUNT_RULE_SYMBOLS - padding)/2;
+            float x = head_rec.x + head_rec.width/2 - ((field_width + field_padding)*COUNT_RULE_SYMBOLS - field_padding)/2;
             float y = head_rec.y + head_rec.height + margin;
 
             for (size_t i = 0; i < p->table.count; ++i) {
                 for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
                     Rectangle rec = {
-                        .x = x + j*(field_width + padding),
-                        .y = y + i*(field_height + padding),
+                        .x = x + j*(field_width + field_padding),
+                        .y = y + i*(field_height + field_padding),
                         .width = field_width,
                         .height = field_height,
                     };
@@ -660,43 +701,7 @@ void plug_update(Env env)
                 }
             }
 
-            float thick = 7.0*p->table_lines_t;
-            Color color = ColorAlpha(CELL_COLOR, p->table_lines_t);
-            for (size_t i = 0; i < p->table.count + 1; ++i) {
-                Vector2 startPos = {
-                    .x = x - thick/2 - padding/2,
-                    .y = y + i*(field_height + padding) - padding/2,
-                };
-                Vector2 endPos = {
-                    .x = x + (field_width + padding)*COUNT_RULE_SYMBOLS + thick/2 - padding/2,
-                    .y = y + i*(field_height + padding) - padding/2,
-                };
-                if (i >= p->table.count) {
-                    Vector2 t = startPos;
-                    startPos = endPos;
-                    endPos = t;
-                }
-                endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
-                DrawLineEx(startPos, endPos, thick, color);
-            }
-
-            for (size_t i = 0; i < COUNT_RULE_SYMBOLS + 1; ++i) {
-                Vector2 startPos = {
-                    .x = x + i*(field_width + padding) - padding/2,
-                    .y = y - padding/2,
-                };
-                Vector2 endPos = {
-                    .x = x + i*(field_width + padding) - padding/2,
-                    .y = y + (field_height + padding)*p->table.count - padding/2,
-                };
-                if (i >= COUNT_RULE_SYMBOLS) {
-                    Vector2 t = startPos;
-                    startPos = endPos;
-                    endPos = t;
-                }
-                endPos = Vector2Lerp(startPos, endPos, p->table_lines_t);
-                DrawLineEx(startPos, endPos, thick, color);
-            }
+            render_table(x, y, field_padding, field_width, field_height, COUNT_RULE_SYMBOLS, p->table.count, p->table_lines_t);
         }
     EndMode2D();
 }
