@@ -542,18 +542,18 @@ static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_sy
     symbol_in_rec(rec, to_symbol, size*t, ColorAlpha(color, t));
 }
 
-static void render_table_lines(float x, float y, float field_padding, float field_width, float field_height, size_t table_columns, size_t table_rows, float t)
+static void render_table_lines(float x, float y, float field_width, float field_height, size_t table_columns, size_t table_rows, float t)
 {
     float thick = 7.0*t;
     Color color = ColorAlpha(CELL_COLOR, t);
     for (size_t i = 0; i < table_rows + 1; ++i) {
         Vector2 start_pos = {
-            .x = x - thick/2 - field_padding/2,
-            .y = y + i*(field_height + field_padding) - field_padding/2,
+            .x = x - thick/2,
+            .y = y + i*field_height,
         };
         Vector2 end_pos = {
-            .x = x + (field_width + field_padding)*table_columns + thick/2 - field_padding/2,
-            .y = y + i*(field_height + field_padding) - field_padding/2,
+            .x = x + field_width*table_columns + thick/2,
+            .y = y + i*field_height,
         };
         if (i >= table_rows) {
             Vector2 t = start_pos;
@@ -566,12 +566,12 @@ static void render_table_lines(float x, float y, float field_padding, float fiel
 
     for (size_t i = 0; i < table_columns + 1; ++i) {
         Vector2 start_pos = {
-            .x = x + i*(field_width + field_padding) - field_padding/2,
-            .y = y - field_padding/2,
+            .x = x + i*field_width,
+            .y = y,
         };
         Vector2 end_pos = {
-            .x = x + i*(field_width + field_padding) - field_padding/2,
-            .y = y + (field_height + field_padding)*table_rows - field_padding/2,
+            .x = x + i*field_width,
+            .y = y + field_height*table_rows,
         };
         if (i >= table_columns) {
             Vector2 t = start_pos;
@@ -681,18 +681,17 @@ void plug_update(Env env)
         // Table
         {
             float margin = 180.0;
-            float field_padding = CELL_PAD*0.5;
             float symbol_size = FONT_SIZE*0.75;
-            float field_width = 20.0f*9;
-            float field_height = 15.0f*9;
-            float x = head_rec.x + head_rec.width/2 - ((field_width + field_padding)*COUNT_RULE_SYMBOLS - field_padding)/2;
+            float field_width = 20.0f*9 + CELL_PAD*0.5;
+            float field_height = 15.0f*9 + CELL_PAD*0.5;
+            float x = head_rec.x + head_rec.width/2 - field_width*COUNT_RULE_SYMBOLS/2;
             float y = head_rec.y + head_rec.height + margin;
 
             for (size_t i = 0; i < p->table.count; ++i) {
                 for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
                     Rectangle rec = {
-                        .x = x + j*(field_width + field_padding),
-                        .y = y + i*(field_height + field_padding),
+                        .x = x + j*field_width,
+                        .y = y + i*field_height,
                         .width = field_width,
                         .height = field_height,
                     };
@@ -701,7 +700,7 @@ void plug_update(Env env)
                 }
             }
 
-            render_table_lines(x, y, field_padding, field_width, field_height, COUNT_RULE_SYMBOLS, p->table.count, p->table_lines_t);
+            render_table_lines(x, y, field_width, field_height, COUNT_RULE_SYMBOLS, p->table.count, p->table_lines_t);
         }
     EndMode2D();
 }
