@@ -125,15 +125,17 @@ typedef struct {
 
     // State (survives the plugin reload, resets on plug_reset)
     Arena arena_state;
-    Head head;
-    Tape tape;
-    float scene_t;
-    float tape_y_offset;
-    float table_lines_t;
-    float table_symbols_t;
-    float table_head_t;
-    Task task;
-    bool finished;
+    struct {
+        Head head;
+        Tape tape;
+        float scene_t;
+        float tape_y_offset;
+        float table_lines_t;
+        float table_symbols_t;
+        float table_head_t;
+        Task task;
+        bool finished;
+    } scene;
 
     // Assets (reloads along with the plugin, does not change throughout the animation)
     Arena arena_assets;
@@ -146,6 +148,7 @@ typedef struct {
     Tag TASK_MOVE_HEAD_TAG;
     Tag TASK_WRITE_HEAD_TAG;
     Tag TASK_WRITE_ALL_TAG;
+    Tag TASK_WRITE_CELL_TAG;
 } Plug;
 
 static Plug *p = NULL;
@@ -159,9 +162,9 @@ typedef struct {
 bool task_intro_update(Intro_Data *data, Env env)
 {
     if (wait_done(&data->wait)) return true;
-    if (!data->wait.started) p->head.index = data->head;
+    if (!data->wait.started) p->scene.head.index = data->head;
     bool finished = wait_update(&data->wait, env);
-    p->scene_t = smoothstep(wait_interp(&data->wait));
+    p->scene.scene_t = smoothstep(wait_interp(&data->wait));
     return finished;
 }
 
@@ -192,12 +195,12 @@ bool move_head_update(Move_Head_Data *data, Env env)
     if (wait_done(&data->wait)) return true;
 
     if (wait_update(&data->wait, env)) {
-        p->head.offset = 0.0f;
-        p->head.index += data->dir;
+        p->scene.head.offset = 0.0f;
+        p->scene.head.index += data->dir;
         return true;
     }
 
-    p->head.offset = Lerp(0, data->dir, smoothstep(wait_interp(&data->wait)));
+    p->scene.head.offset = Lerp(0, data->dir, smoothstep(wait_interp(&data->wait)));
     return false;
 }
 
@@ -221,6 +224,57 @@ Task task_move_head(Arena *a, Direction dir)
 typedef struct {
     Wait_Data wait;
     Symbol write;
+    Cell *cell;
+} Write_Cell_Data;
+
+bool write_cell_update(Write_Cell_Data *data, Env env)
+{
+    if (wait_done(&data->wait)) return true;
+
+    if (!data->wait.started && data->cell) {
+        data->cell->symbol_b = data->write;
+        data->cell->t = 0.0;
+    }
+
+    float t1 = wait_interp(&data->wait);
+    bool finished = wait_update(&data->wait, env);
+    float t2 = wait_interp(&data->wait);
+
+    if (t1 < 0.5 && t2 >= 0.5) {
+        env.play_sound(p->write_sound, p->write_wave);
+    }
+
+    if (data->cell) data->cell->t = smoothstep(t2);
+
+    if (finished && data->cell) {
+        data->cell->symbol_a = data->cell->symbol_b;
+        data->cell->t = 0.0;
+    }
+
+    return finished;
+}
+
+Write_Cell_Data write_cell_data(Cell *cell, Symbol write)
+{
+    return (Write_Cell_Data) {
+        .wait = wait_data(HEAD_WRITING_DURATION),
+        .cell = cell,
+        .write = write,
+    };
+}
+
+Task task_write_cell(Arena *a, Cell *cell, Symbol write)
+{
+    Write_Cell_Data data = write_cell_data(cell, write);
+    return (Task) {
+        .tag = p->TASK_WRITE_CELL_TAG,
+        .data = arena_memdup(a, &data, sizeof(data)),
+    };
+}
+
+typedef struct {
+    Wait_Data wait;
+    Symbol write;
 } Write_Head_Data;
 
 bool write_head_update(Write_Head_Data *data, Env env)
@@ -228,8 +282,8 @@ bool write_head_update(Write_Head_Data *data, Env env)
     if (wait_done(&data->wait)) return true;
 
     Cell *cell = NULL;
-    if ((size_t)p->head.index < p->tape.count) {
-        cell = &p->tape.items[(size_t)p->head.index];
+    if ((size_t)p->scene.head.index < p->scene.tape.count) {
+        cell = &p->scene.tape.items[(size_t)p->scene.head.index];
     }
 
     if (!data->wait.started && cell) {
@@ -282,9 +336,9 @@ bool write_all_update(Write_All_Data *data, Env env)
     if (wait_done(&data->wait)) return true;
 
     if (!data->wait.started) {
-        for (size_t i = 0; i < p->tape.count; ++i) {
-            p->tape.items[i].t = 0.0f;
-            p->tape.items[i].symbol_b = data->write;
+        for (size_t i = 0; i < p->scene.tape.count; ++i) {
+            p->scene.tape.items[i].t = 0.0f;
+            p->scene.tape.items[i].symbol_b = data->write;
         }
     }
 
@@ -296,14 +350,14 @@ bool write_all_update(Write_All_Data *data, Env env)
         env.play_sound(p->write_sound, p->write_wave);
     }
 
-    for (size_t i = 0; i < p->tape.count; ++i) {
-        p->tape.items[i].t = smoothstep(t2);
+    for (size_t i = 0; i < p->scene.tape.count; ++i) {
+        p->scene.tape.items[i].t = smoothstep(t2);
     }
 
     if (finished) {
-        for (size_t i = 0; i < p->tape.count; ++i) {
-            p->tape.items[i].t = 0.0f;
-            p->tape.items[i].symbol_a = p->tape.items[i].symbol_b;
+        for (size_t i = 0; i < p->scene.tape.count; ++i) {
+            p->scene.tape.items[i].t = 0.0f;
+            p->scene.tape.items[i].symbol_a = p->scene.tape.items[i].symbol_b;
         }
     }
 
@@ -391,6 +445,9 @@ static void load_assets(void)
     p->TASK_WRITE_ALL_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)write_all_update,
     });
+    p->TASK_WRITE_CELL_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)write_cell_update,
+    });
 }
 
 static void unload_assets(void)
@@ -407,46 +464,38 @@ static void unload_assets(void)
 static Task task_outro(Arena *a, float duration)
 {
     return task_group(a,
-        task_move_scalar(a, &p->scene_t, 0.0, duration),
-        task_move_scalar(a, &p->tape_y_offset, 0.0, duration),
-        task_move_scalar(a, &p->table_lines_t, 0.0, duration),
-        task_move_scalar(a, &p->table_symbols_t, 0.0, duration),
-        task_move_scalar(a, &p->table_head_t, 0.0, duration),
-        task_move_scalar(a, &p->head.state_t, 0.0, duration));
+        task_move_scalar(a, &p->scene.scene_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.tape_y_offset, 0.0, duration),
+        task_move_scalar(a, &p->scene.table_lines_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.table_symbols_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.table_head_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.head.state_t, 0.0, duration));
 }
 
 void plug_reset(void)
 {
     Arena *a = &p->arena_state;
     arena_reset(a);
+    memset(&p->scene, 0, sizeof(p->scene));
 
-    p->head.index = 0;
-    p->head.offset = 0;
-    p->head.state_t = 0;
-    p->tape.count = 0;
     Symbol zero = symbol_text(a, "0");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
         Cell cell = {.symbol_a = zero,};
-        nob_da_append(&p->tape, cell);
+        nob_da_append(&p->scene.tape, cell);
     }
 
-    p->scene_t = 0;
-    p->tape_y_offset = 0.0f;
-    p->table_lines_t = 0;
-    p->table_symbols_t = 0;
-    p->table_head_t = 0;
-
-    p->task = task_seq(a,
+    p->scene.task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
         task_wait(a, 0.75),
-        task_move_scalar(a, &p->tape_y_offset, -250.0, 0.5),
+        task_move_scalar(a, &p->scene.tape_y_offset, -250.0, 0.5),
         task_wait(a, 0.75),
 
         task_seq(a,
-            task_move_scalar(a, &p->table_lines_t, 1.0, 0.5),
-            task_move_scalar(a, &p->table_symbols_t, 1.0, 0.5),
-            task_move_scalar(a, &p->head.state_t, 1.0, 0.5),
-            task_move_scalar(a, &p->table_head_t, 1.0, 0.5)),
+            task_move_scalar(a, &p->scene.table_lines_t, 1.0, 0.5),
+            task_move_scalar(a, &p->scene.table_symbols_t, 1.0, 0.5),
+            task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5),
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
+            task_move_scalar(a, &p->scene.table_head_t, 1.0, 0.5)),
 
         task_wait(a, 0.75),
         task_write_head(a, symbol_text(a, "1")),
@@ -476,7 +525,6 @@ void plug_reset(void)
         task_outro(a, INTRO_DURATION),
         task_wait(a, 0.5)
         );
-    p->finished = false;
 }
 
 void plug_init(void)
@@ -602,7 +650,7 @@ void plug_update(Env env)
 {
     ClearBackground(BACKGROUND_COLOR);
 
-    p->finished = task_update(p->task, env);
+    p->scene.finished = task_update(p->scene.task, env);
 
     float head_thick = 20.0;
     float head_padding = head_thick*2.5;
@@ -610,15 +658,15 @@ void plug_update(Env env)
         .width = CELL_WIDTH + head_padding,
         .height = CELL_HEIGHT + head_padding,
     };
-    float t = ((float)p->head.index + p->head.offset);
-    head_rec.x = CELL_WIDTH/2 - head_rec.width/2 + Lerp(-20.0, t, p->scene_t)*(CELL_WIDTH + CELL_PAD);
+    float t = ((float)p->scene.head.index + p->scene.head.offset);
+    head_rec.x = CELL_WIDTH/2 - head_rec.width/2 + Lerp(-20.0, t, p->scene.scene_t)*(CELL_WIDTH + CELL_PAD);
     head_rec.y = CELL_HEIGHT/2 - head_rec.height/2;
     Camera2D camera = {
         .target = {
             .x = head_rec.x + head_rec.width/2,
-            .y = head_rec.y + head_rec.height/2 - p->tape_y_offset,
+            .y = head_rec.y + head_rec.height/2 - p->scene.tape_y_offset,
         },
-        .zoom = Lerp(0.5, 1.0, p->scene_t),
+        .zoom = Lerp(0.5, 1.0, p->scene.scene_t),
         .offset = {
             .x = env.screen_width/2,
             .y = env.screen_height/2,
@@ -628,7 +676,7 @@ void plug_update(Env env)
 
         // Tape
         {
-            for (size_t i = 0; i < p->tape.count; ++i) {
+            for (size_t i = 0; i < p->scene.tape.count; ++i) {
                 Rectangle rec = {
                     .x = i*(CELL_WIDTH + CELL_PAD),
                     .y = 0,
@@ -636,7 +684,7 @@ void plug_update(Env env)
                     .height = CELL_HEIGHT,
                 };
                 DrawRectangleRec(rec, CELL_COLOR);
-                cell_in_rec(rec, p->tape.items[i], BACKGROUND_COLOR);
+                cell_in_rec(rec, p->scene.tape.items[i], BACKGROUND_COLOR);
             }
         }
 
@@ -647,14 +695,14 @@ void plug_update(Env env)
                 .height = head_rec.height*0.5,
             };
             state_rec.x = head_rec.x,
-            state_rec.y = head_rec.y + head_rec.height - state_rec.height*(1 - p->head.state_t),
+            state_rec.y = head_rec.y + head_rec.height - state_rec.height*(1 - p->scene.head.state_t),
             // DrawRectangleLinesEx(state_rec, 10, RED);
-            symbol_in_rec(state_rec, (Symbol){.kind = SYMBOL_TEXT, .text = "Inc"}, FONT_SIZE*0.75, ColorAlpha(CELL_COLOR, p->head.state_t));
+            cell_in_rec(state_rec, p->scene.head.state, ColorAlpha(CELL_COLOR, p->scene.head.state_t));
             float h = head_rec.height;
             if (state_rec.y + state_rec.height > head_rec.y + head_rec.height) {
                 h += state_rec.y + state_rec.height - (head_rec.y + head_rec.height);
             }
-            render_table_lines(head_rec.x, head_rec.y, head_rec.width, h, 1, 1, p->scene_t, head_thick, HEAD_COLOR);
+            render_table_lines(head_rec.x, head_rec.y, head_rec.width, h, 1, 1, p->scene.scene_t, head_thick, HEAD_COLOR);
         }
 
         // Table
@@ -675,7 +723,7 @@ void plug_update(Env env)
                         .width = field_width,
                         .height = field_height,
                     };
-                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->table_symbols_t, ColorAlpha(CELL_COLOR, p->table_symbols_t));
+                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->scene.table_symbols_t, ColorAlpha(CELL_COLOR, p->scene.table_symbols_t));
                 }
 
                 for (size_t j = 2; j < COUNT_RULE_SYMBOLS; ++j) {
@@ -685,22 +733,22 @@ void plug_update(Env env)
                         .width = field_width,
                         .height = field_height,
                     };
-                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->table_symbols_t, ColorAlpha(CELL_COLOR, p->table_symbols_t));
+                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->scene.table_symbols_t, ColorAlpha(CELL_COLOR, p->scene.table_symbols_t));
                 }
             }
 
-            render_table_lines(x, y, field_width, field_height, 2, p->table.count, p->table_lines_t, 7.0f, CELL_COLOR);
+            render_table_lines(x, y, field_width, field_height, 2, p->table.count, p->scene.table_lines_t, 7.0f, CELL_COLOR);
 
-            render_table_lines(x + 2*field_width + right_margin, y, field_width, field_height, 3, p->table.count, p->table_lines_t, 7.0f, CELL_COLOR);
+            render_table_lines(x + 2*field_width + right_margin, y, field_width, field_height, 3, p->table.count, p->scene.table_lines_t, 7.0f, CELL_COLOR);
 
-            render_table_lines(x - head_padding/2, y - head_padding/2, 2*field_width + head_padding, field_height + head_padding, 1, 1, p->table_head_t, head_thick, HEAD_COLOR);
+            render_table_lines(x - head_padding/2, y - head_padding/2, 2*field_width + head_padding, field_height + head_padding, 1, 1, p->scene.table_head_t, head_thick, HEAD_COLOR);
         }
     EndMode2D();
 }
 
 bool plug_finished(void)
 {
-    return p->finished;
+    return p->scene.finished;
 }
 
 #define ARENA_IMPLEMENTATION
