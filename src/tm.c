@@ -479,10 +479,18 @@ void plug_reset(void)
     memset(&p->scene, 0, sizeof(p->scene));
 
     Symbol zero = symbol_text(a, "0");
+    Symbol one = symbol_text(a, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
         Cell cell = {.symbol_a = zero,};
         nob_da_append(&p->scene.tape, cell);
     }
+    for (size_t i = 0; i < 3; ++i) {
+        if (START_AT_CELL_INDEX + i < p->scene.tape.count) {
+            p->scene.tape.items[START_AT_CELL_INDEX + i].symbol_a = one;
+        }
+    }
+
+    p->scene.head.state.symbol_a = symbol_text(a, "Inc");
 
     p->scene.task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
@@ -494,33 +502,43 @@ void plug_reset(void)
             task_move_scalar(a, &p->scene.table_lines_t, 1.0, 0.5),
             task_move_scalar(a, &p->scene.table_symbols_t, 1.0, 0.5),
             task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5),
-            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
             task_move_scalar(a, &p->scene.table_head_t, 1.0, 0.5)),
 
         task_wait(a, 0.75),
-        task_write_head(a, symbol_text(a, "1")),
+        task_write_head(a, zero),
         task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "2")),
+        task_write_head(a, zero),
         task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "69")),
+        task_write_head(a, zero),
         task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "420")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, ":)")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_JOY)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_FIRE)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_OK)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_100)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_EGGPLANT)),
-        task_write_all(a, symbol_text(a, "0")),
-        task_write_all(a, symbol_text(a, "69")),
-        task_write_all(a, symbol_image(IMAGE_EGGPLANT)),
-        task_write_all(a, symbol_text(a, "0")),
+        task_group(a,
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
+            task_write_head(a, one)),
+
+        // task_write_head(a, symbol_text(a, "1")),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_text(a, "2")),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_text(a, "69")),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_text(a, "420")),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_text(a, ":)")),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_image(IMAGE_JOY)),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_image(IMAGE_FIRE)),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_image(IMAGE_OK)),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_image(IMAGE_100)),
+        // task_move_head(a, DIR_RIGHT),
+        // task_write_head(a, symbol_image(IMAGE_EGGPLANT)),
+        // task_write_all(a, symbol_text(a, "0")),
+        // task_write_all(a, symbol_text(a, "69")),
+        // task_write_all(a, symbol_image(IMAGE_EGGPLANT)),
+        // task_write_all(a, symbol_text(a, "0")),
+
         task_wait(a, 0.5),
         task_outro(a, INTRO_DURATION),
         task_wait(a, 0.5)
@@ -601,9 +619,9 @@ static void interp_symbol_in_rec(Rectangle rec, Symbol from_symbol, Symbol to_sy
     symbol_in_rec(rec, to_symbol, size*t, ColorAlpha(color, t));
 }
 
-static void cell_in_rec(Rectangle rec, Cell cell, Color color)
+static void cell_in_rec(Rectangle rec, Cell cell, float size, Color color)
 {
-    interp_symbol_in_rec(rec, cell.symbol_a, cell.symbol_b, FONT_SIZE, cell.t, color);
+    interp_symbol_in_rec(rec, cell.symbol_a, cell.symbol_b, size, cell.t, color);
 }
 
 static void render_table_lines(float x, float y, float field_width, float field_height, size_t table_columns, size_t table_rows, float t, float thick, Color color)
@@ -684,7 +702,7 @@ void plug_update(Env env)
                     .height = CELL_HEIGHT,
                 };
                 DrawRectangleRec(rec, CELL_COLOR);
-                cell_in_rec(rec, p->scene.tape.items[i], BACKGROUND_COLOR);
+                cell_in_rec(rec, p->scene.tape.items[i], FONT_SIZE, BACKGROUND_COLOR);
             }
         }
 
@@ -697,7 +715,7 @@ void plug_update(Env env)
             state_rec.x = head_rec.x,
             state_rec.y = head_rec.y + head_rec.height - state_rec.height*(1 - p->scene.head.state_t),
             // DrawRectangleLinesEx(state_rec, 10, RED);
-            cell_in_rec(state_rec, p->scene.head.state, ColorAlpha(CELL_COLOR, p->scene.head.state_t));
+            cell_in_rec(state_rec, p->scene.head.state, FONT_SIZE*0.75*p->scene.head.state_t, ColorAlpha(CELL_COLOR, p->scene.head.state_t));
             float h = head_rec.height;
             if (state_rec.y + state_rec.height > head_rec.y + head_rec.height) {
                 h += state_rec.y + state_rec.height - (head_rec.y + head_rec.height);
