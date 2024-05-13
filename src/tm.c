@@ -472,6 +472,34 @@ static Task task_outro(Arena *a, float duration)
         task_move_scalar(a, &p->scene.head.state_t, 0.0, duration));
 }
 
+static Task task_fun(Arena *a)
+{
+    return task_seq(a,
+        task_write_head(a, symbol_text(a, "1")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "2")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "69")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, "420")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_text(a, ":)")),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_JOY)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_FIRE)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_OK)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_100)),
+        task_move_head(a, DIR_RIGHT),
+        task_write_head(a, symbol_image(IMAGE_EGGPLANT)),
+        task_write_all(a, symbol_text(a, "0")),
+        task_write_all(a, symbol_text(a, "69")),
+        task_write_all(a, symbol_image(IMAGE_EGGPLANT)),
+        task_write_all(a, symbol_text(a, "0")));
+}
+
 void plug_reset(void)
 {
     Arena *a = &p->arena_state;
@@ -515,29 +543,7 @@ void plug_reset(void)
             task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
             task_write_head(a, one)),
 
-        // task_write_head(a, symbol_text(a, "1")),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_text(a, "2")),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_text(a, "69")),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_text(a, "420")),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_text(a, ":)")),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_image(IMAGE_JOY)),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_image(IMAGE_FIRE)),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_image(IMAGE_OK)),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_image(IMAGE_100)),
-        // task_move_head(a, DIR_RIGHT),
-        // task_write_head(a, symbol_image(IMAGE_EGGPLANT)),
-        // task_write_all(a, symbol_text(a, "0")),
-        // task_write_all(a, symbol_text(a, "69")),
-        // task_write_all(a, symbol_image(IMAGE_EGGPLANT)),
-        // task_write_all(a, symbol_text(a, "0")),
+        task_fun(a),
 
         task_wait(a, 0.5),
         task_outro(a, INTRO_DURATION),
