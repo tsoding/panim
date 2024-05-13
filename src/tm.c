@@ -235,17 +235,17 @@ bool move_head_update(Move_Head_Data *data, Env env)
     return false;
 }
 
-Move_Head_Data move_head(Direction dir)
+Move_Head_Data move_head(Direction dir, float duration)
 {
     return (Move_Head_Data) {
-        .wait = wait_data(HEAD_MOVING_DURATION),
+        .wait = wait_data(duration),
         .dir = dir,
     };
 }
 
-Task task_move_head(Arena *a, Direction dir)
+Task task_move_head(Arena *a, Direction dir, float duration)
 {
-    Move_Head_Data data = move_head(dir);
+    Move_Head_Data data = move_head(dir, duration);
     return (Task) {
         .tag = p->TASK_MOVE_HEAD_TAG,
         .data = arena_memdup(a, &data, sizeof(data)),
@@ -340,17 +340,17 @@ bool write_head_update(Write_Head_Data *data, Env env)
     return finished;
 }
 
-Write_Head_Data write_head_data(Symbol write)
+Write_Head_Data write_head_data(Symbol write, float duration)
 {
     return (Write_Head_Data) {
-        .wait = wait_data(HEAD_WRITING_DURATION),
+        .wait = wait_data(duration),
         .write = write,
     };
 }
 
-Task task_write_head(Arena *a, Symbol write)
+Task task_write_head(Arena *a, Symbol write, float duration)
 {
-    Write_Head_Data data = write_head_data(write);
+    Write_Head_Data data = write_head_data(write, duration);
     return (Task) {
         .tag = p->TASK_WRITE_HEAD_TAG,
         .data = arena_memdup(a, &data, sizeof(data)),
@@ -491,25 +491,25 @@ static Task task_outro(Arena *a, float duration)
 static Task task_fun(Arena *a)
 {
     return task_seq(a,
-        task_write_head(a, symbol_text(a, "1")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "2")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "69")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, "420")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_text(a, ":)")),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_JOY)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_FIRE)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_OK)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_100)),
-        task_move_head(a, DIR_RIGHT),
-        task_write_head(a, symbol_image(IMAGE_EGGPLANT)),
+        task_write_head(a, symbol_text(a, "1"), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_text(a, "2"), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_text(a, "69"), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_text(a, "420"), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_text(a, ":)"), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_image(IMAGE_JOY), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_image(IMAGE_FIRE), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_image(IMAGE_OK), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_image(IMAGE_100), HEAD_WRITING_DURATION),
+        task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+        task_write_head(a, symbol_image(IMAGE_EGGPLANT), HEAD_WRITING_DURATION),
         task_write_all(a, symbol_text(a, "0")),
         task_write_all(a, symbol_text(a, "69")),
         task_write_all(a, symbol_image(IMAGE_EGGPLANT)),
@@ -571,24 +571,24 @@ void plug_reset(void)
 
         task_wait(a, 0.5),
         task_group(a,
-            task_write_head(a, zero),
+            task_write_head(a, zero, HEAD_WRITING_DURATION*4),
+            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION*4)),
+        task_group(a,
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION*4),
+            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_MOVING_DURATION*4)),
+        task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION*4),
+        task_group(a,
+            task_write_head(a, zero, HEAD_WRITING_DURATION*2),
+            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION*2)),
+        task_group(a,
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION*2),
+            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION*2)),
+        task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION*2),
+        task_group(a,
+            task_write_head(a, zero, HEAD_WRITING_DURATION),
             task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION)),
-        task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION),
-        task_group(a,
-            task_write_head(a, zero),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION)),
-        task_group(a,
-            task_move_head(a, DIR_RIGHT),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION)),
-        task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION),
-        task_group(a,
-            task_write_head(a, zero),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION)),
-        task_group(a,
-            task_move_head(a, DIR_RIGHT),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
             task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION)),
 
         task_group(a,
@@ -596,10 +596,10 @@ void plug_reset(void)
             task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION)),
 
         task_group(a,
-            task_write_head(a, one),
+            task_write_head(a, one, HEAD_WRITING_DURATION),
             task_move_and_reset_scalar(a, &p->scene.table.items[0].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
             task_move_and_reset_scalar(a, &p->scene.table.items[0].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION)),
         task_group(a,
             task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
