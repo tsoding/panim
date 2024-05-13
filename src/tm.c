@@ -132,9 +132,9 @@ typedef struct {
     // State (survives the plugin reload, resets on plug_reset)
     Arena arena_state;
     struct {
+        float t;
         Head head;
         Tape tape;
-        float scene_t;
         Table table;
         float tape_y_offset;
         Task task;
@@ -195,7 +195,7 @@ bool task_intro_update(Intro_Data *data, Env env)
     if (wait_done(&data->wait)) return true;
     if (!data->wait.started) p->scene.head.index = data->head;
     bool finished = wait_update(&data->wait, env);
-    p->scene.scene_t = smoothstep(wait_interp(&data->wait));
+    p->scene.t = smoothstep(wait_interp(&data->wait));
     return finished;
 }
 
@@ -480,7 +480,7 @@ static void unload_assets(void)
 static Task task_outro(Arena *a, float duration)
 {
     return task_group(a,
-        task_move_scalar(a, &p->scene.scene_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.t, 0.0, duration),
         task_move_scalar(a, &p->scene.tape_y_offset, 0.0, duration),
         task_move_scalar(a, &p->scene.table.lines_t, 0.0, duration),
         task_move_scalar(a, &p->scene.table.symbols_t, 0.0, duration),
@@ -745,14 +745,14 @@ void plug_update(Env env)
         .height = CELL_HEIGHT + head_padding,
     };
     float t = ((float)p->scene.head.index + p->scene.head.offset);
-    head_rec.x = CELL_WIDTH/2 - head_rec.width/2 + Lerp(-20.0, t, p->scene.scene_t)*(CELL_WIDTH + CELL_PAD);
+    head_rec.x = CELL_WIDTH/2 - head_rec.width/2 + Lerp(-20.0, t, p->scene.t)*(CELL_WIDTH + CELL_PAD);
     head_rec.y = CELL_HEIGHT/2 - head_rec.height/2;
     Camera2D camera = {
         .target = {
             .x = head_rec.x + head_rec.width/2,
             .y = head_rec.y + head_rec.height/2 - p->scene.tape_y_offset,
         },
-        .zoom = Lerp(0.5, 1.0, p->scene.scene_t),
+        .zoom = Lerp(0.5, 1.0, p->scene.t),
         .offset = {
             .x = env.screen_width/2,
             .y = env.screen_height/2,
@@ -787,14 +787,14 @@ void plug_update(Env env)
             if (state_rec.y + state_rec.height > head_rec.y + head_rec.height) {
                 h += state_rec.y + state_rec.height - (head_rec.y + head_rec.height);
             }
-            render_table_lines(head_rec.x, head_rec.y, head_rec.width, h, 1, 1, p->scene.scene_t, head_thick, HEAD_COLOR);
+            render_table_lines(head_rec.x, head_rec.y, head_rec.width, h, 1, 1, p->scene.t, head_thick, HEAD_COLOR);
             Rectangle watermark = {
                 .width = state_rec.width,
                 .height = FONT_SIZE*0.5,
             };
             watermark.x = state_rec.x,
             watermark.y = state_rec.y + state_rec.height;
-            text_in_rec(watermark, "x.com/tsoding", FONT_SIZE*0.25, ColorAlpha(CELL_COLOR, p->scene.scene_t*0.5));
+            text_in_rec(watermark, "x.com/tsoding", FONT_SIZE*0.25, ColorAlpha(CELL_COLOR, p->scene.t*0.5));
         }
 
         // Table
