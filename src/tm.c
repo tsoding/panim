@@ -133,6 +133,7 @@ typedef struct {
         float table_lines_t;
         float table_symbols_t;
         float table_head_t;
+        float table_head_offset_t;
         Task task;
         bool finished;
     } scene;
@@ -519,6 +520,7 @@ void plug_reset(void)
     }
 
     p->scene.head.state.symbol_a = symbol_text(a, "Inc");
+    p->scene.table_head_offset_t = 1.0f;
 
     p->scene.task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
@@ -532,20 +534,22 @@ void plug_reset(void)
             task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5),
             task_move_scalar(a, &p->scene.table_head_t, 1.0, 0.5)),
 
-        task_wait(a, 0.75),
+        task_wait(a, 0.5),
         task_write_head(a, zero),
         task_move_head(a, DIR_RIGHT),
         task_write_head(a, zero),
         task_move_head(a, DIR_RIGHT),
         task_write_head(a, zero),
-        task_move_head(a, DIR_RIGHT),
+        task_group(a,
+            task_move_head(a, DIR_RIGHT),
+            task_move_scalar(a, &p->scene.table_head_offset_t, 0.0, HEAD_WRITING_DURATION)),
         task_group(a,
             task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
             task_write_head(a, one)),
 
-        task_fun(a),
+        // task_fun(a),
 
-        task_wait(a, 0.5),
+        task_wait(a, 1.0),
         task_outro(a, INTRO_DURATION),
         task_wait(a, 0.5)
         );
@@ -765,7 +769,13 @@ void plug_update(Env env)
 
             render_table_lines(x + 2*field_width + right_margin, y, field_width, field_height, 3, p->table.count, p->scene.table_lines_t, 7.0f, CELL_COLOR);
 
-            render_table_lines(x - head_padding/2, y - head_padding/2, 2*field_width + head_padding, field_height + head_padding, 1, 1, p->scene.table_head_t, head_thick, HEAD_COLOR);
+            render_table_lines(
+                x - head_padding/2,
+                y - head_padding/2 + p->scene.table_head_offset_t*field_height,
+                2*field_width + head_padding,
+                field_height + head_padding,
+                1, 1,
+                p->scene.table_head_t, head_thick, HEAD_COLOR);
         }
     EndMode2D();
 }
