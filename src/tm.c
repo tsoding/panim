@@ -758,8 +758,10 @@ void plug_update(Env env)
             .y = env.screen_height/2,
         },
     };
-    BeginMode2D(camera);
 
+    // Scene
+    BeginMode2D(camera);
+    {
         // Tape
         {
             for (size_t i = 0; i < p->scene.tape.count; ++i) {
@@ -853,6 +855,7 @@ void plug_update(Env env)
                 1, 1,
                 p->scene.table.head_t, head_thick, HEAD_COLOR);
         }
+    }
     EndMode2D();
 }
 
