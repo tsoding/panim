@@ -92,12 +92,18 @@ typedef enum {
 
 typedef struct {
     Symbol symbols[COUNT_RULE_SYMBOLS];
+    float highlight[COUNT_RULE_SYMBOLS];
 } Rule;
 
 typedef struct {
     Rule *items;
     size_t count;
     size_t capacity;
+
+    float lines_t;
+    float symbols_t;
+    float head_t;
+    float head_offset_t;
 } Table;
 
 typedef struct {
@@ -129,18 +135,14 @@ typedef struct {
         Head head;
         Tape tape;
         float scene_t;
+        Table table;
         float tape_y_offset;
-        float table_lines_t;
-        float table_symbols_t;
-        float table_head_t;
-        float table_head_offset_t;
         Task task;
         bool finished;
     } scene;
 
     // Assets (reloads along with the plugin, does not change throughout the animation)
     Arena arena_assets;
-    Table table;
     Font font;
     Sound write_sound;
     Wave write_wave;
@@ -382,9 +384,9 @@ Task task_write_all(Arena *a, Symbol write)
     };
 }
 
-static void table(Symbol state, Symbol read, Symbol write, Symbol step, Symbol next)
+static Rule rule(Symbol state, Symbol read, Symbol write, Symbol step, Symbol next)
 {
-    Rule rule = {
+    return (Rule) {
         .symbols = {
             [RULE_STATE] = state,
             [RULE_READ] = read,
@@ -393,7 +395,6 @@ static void table(Symbol state, Symbol read, Symbol write, Symbol step, Symbol n
             [RULE_NEXT] = next,
         },
     };
-    nob_da_append(&p->table, rule);
 }
 
 static void load_assets(void)
@@ -416,22 +417,6 @@ static void load_assets(void)
 
     p->write_wave = LoadWave("./assets/sounds/plant-bomb.wav");
     p->write_sound = LoadSoundFromWave(p->write_wave);
-
-    // Table
-    {
-        table(
-            symbol_text(a, "Inc"),
-            symbol_text(a, "0"),
-            symbol_text(a, "1"),
-            symbol_text(a, "→"),
-            symbol_text(a, "Halt"));
-        table(
-            symbol_text(a, "Inc"),
-            symbol_text(a, "1"),
-            symbol_text(a, "0"),
-            symbol_text(a, "→"),
-            symbol_text(a, "Inc"));
-    }
 
     task_vtable_rebuild(a);
     p->TASK_INTRO_TAG = task_vtable_register(a, (Task_Funcs) {
@@ -459,7 +444,6 @@ static void unload_assets(void)
     for (size_t i = 0; i < COUNT_IMAGES; ++i) {
         UnloadTexture(p->images[i]);
     }
-    p->table.count = 0;
 }
 
 static Task task_outro(Arena *a, float duration)
@@ -467,9 +451,9 @@ static Task task_outro(Arena *a, float duration)
     return task_group(a,
         task_move_scalar(a, &p->scene.scene_t, 0.0, duration),
         task_move_scalar(a, &p->scene.tape_y_offset, 0.0, duration),
-        task_move_scalar(a, &p->scene.table_lines_t, 0.0, duration),
-        task_move_scalar(a, &p->scene.table_symbols_t, 0.0, duration),
-        task_move_scalar(a, &p->scene.table_head_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.table.lines_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.table.symbols_t, 0.0, duration),
+        task_move_scalar(a, &p->scene.table.head_t, 0.0, duration),
         task_move_scalar(a, &p->scene.head.state_t, 0.0, duration));
 }
 
@@ -507,6 +491,22 @@ void plug_reset(void)
     arena_reset(a);
     memset(&p->scene, 0, sizeof(p->scene));
 
+    // Table
+    {
+        arena_da_append(a, &p->scene.table, rule(
+            symbol_text(a, "Inc"),
+            symbol_text(a, "0"),
+            symbol_text(a, "1"),
+            symbol_text(a, "→"),
+            symbol_text(a, "Halt")));
+        arena_da_append(a, &p->scene.table, rule(
+            symbol_text(a, "Inc"),
+            symbol_text(a, "1"),
+            symbol_text(a, "0"),
+            symbol_text(a, "→"),
+            symbol_text(a, "Inc")));
+    }
+
     Symbol zero = symbol_text(a, "0");
     Symbol one = symbol_text(a, "1");
     for (size_t i = 0; i < TAPE_SIZE; ++i) {
@@ -520,7 +520,7 @@ void plug_reset(void)
     }
 
     p->scene.head.state.symbol_a = symbol_text(a, "Inc");
-    p->scene.table_head_offset_t = 1.0f;
+    p->scene.table.head_offset_t = 1.0f;
 
     p->scene.task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
@@ -529,10 +529,10 @@ void plug_reset(void)
         task_wait(a, 0.75),
 
         task_seq(a,
-            task_move_scalar(a, &p->scene.table_lines_t, 1.0, 0.5),
-            task_move_scalar(a, &p->scene.table_symbols_t, 1.0, 0.5),
+            task_move_scalar(a, &p->scene.table.lines_t, 1.0, 0.5),
+            task_move_scalar(a, &p->scene.table.symbols_t, 1.0, 0.5),
             task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5),
-            task_move_scalar(a, &p->scene.table_head_t, 1.0, 0.5)),
+            task_move_scalar(a, &p->scene.table.head_t, 1.0, 0.5)),
 
         task_wait(a, 0.5),
         task_write_head(a, zero),
@@ -542,7 +542,7 @@ void plug_reset(void)
         task_write_head(a, zero),
         task_group(a,
             task_move_head(a, DIR_RIGHT),
-            task_move_scalar(a, &p->scene.table_head_offset_t, 0.0, HEAD_WRITING_DURATION)),
+            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION)),
         task_group(a,
             task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
             task_write_head(a, one)),
@@ -743,7 +743,7 @@ void plug_update(Env env)
             float x = head_rec.x + head_rec.width/2 - (field_width*COUNT_RULE_SYMBOLS + right_margin)/2;
             float y = head_rec.y + head_rec.height + top_margin;
 
-            for (size_t i = 0; i < p->table.count; ++i) {
+            for (size_t i = 0; i < p->scene.table.count; ++i) {
                 for (size_t j = 0; j < 2; ++j) {
                     Rectangle rec = {
                         .x = x + j*field_width,
@@ -751,7 +751,7 @@ void plug_update(Env env)
                         .width = field_width,
                         .height = field_height,
                     };
-                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->scene.table_symbols_t, ColorAlpha(CELL_COLOR, p->scene.table_symbols_t));
+                    symbol_in_rec(rec, p->scene.table.items[i].symbols[j], symbol_size*p->scene.table.symbols_t, ColorAlpha(CELL_COLOR, p->scene.table.symbols_t));
                 }
 
                 for (size_t j = 2; j < COUNT_RULE_SYMBOLS; ++j) {
@@ -761,21 +761,21 @@ void plug_update(Env env)
                         .width = field_width,
                         .height = field_height,
                     };
-                    symbol_in_rec(rec, p->table.items[i].symbols[j], symbol_size*p->scene.table_symbols_t, ColorAlpha(CELL_COLOR, p->scene.table_symbols_t));
+                    symbol_in_rec(rec, p->scene.table.items[i].symbols[j], symbol_size*p->scene.table.symbols_t, ColorAlpha(CELL_COLOR, p->scene.table.symbols_t));
                 }
             }
 
-            render_table_lines(x, y, field_width, field_height, 2, p->table.count, p->scene.table_lines_t, 7.0f, CELL_COLOR);
+            render_table_lines(x, y, field_width, field_height, 2, p->scene.table.count, p->scene.table.lines_t, 7.0f, CELL_COLOR);
 
-            render_table_lines(x + 2*field_width + right_margin, y, field_width, field_height, 3, p->table.count, p->scene.table_lines_t, 7.0f, CELL_COLOR);
+            render_table_lines(x + 2*field_width + right_margin, y, field_width, field_height, 3, p->scene.table.count, p->scene.table.lines_t, 7.0f, CELL_COLOR);
 
             render_table_lines(
                 x - head_padding/2,
-                y - head_padding/2 + p->scene.table_head_offset_t*field_height,
+                y - head_padding/2 + p->scene.table.head_offset_t*field_height,
                 2*field_width + head_padding,
                 field_height + head_padding,
                 1, 1,
-                p->scene.table_head_t, head_thick, HEAD_COLOR);
+                p->scene.table.head_t, head_thick, HEAD_COLOR);
         }
     EndMode2D();
 }
