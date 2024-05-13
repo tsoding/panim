@@ -17,4 +17,11 @@ static inline float sinstep(float t)
     return (sinf(PI*t - PI*0.5) + 1)*0.5;
 }
 
+static inline float sinpulse(float t)
+{
+    if (t < 0.0) return 0.0;
+    if (t >= 1.0) return 1.0;
+    return sinf(PI*t);
+}
+
 #endif // INTERPOLATORS_H_
