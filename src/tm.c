@@ -92,6 +92,7 @@ typedef enum {
 
 typedef struct {
     Symbol symbols[COUNT_RULE_SYMBOLS];
+    float bump[COUNT_RULE_SYMBOLS];
 } Rule;
 
 typedef struct {
@@ -563,7 +564,7 @@ void plug_reset(void)
         task_move_scalar(a, &p->scene.tape_y_offset, -250.0, 0.5, FUNC_SMOOTHSTEP),
         task_wait(a, 0.75),
 
-        task_seq(a,
+        task_group(a,
             task_move_scalar(a, &p->scene.table.lines_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
             task_move_scalar(a, &p->scene.table.symbols_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
             task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
@@ -571,27 +572,36 @@ void plug_reset(void)
 
         task_wait(a, 0.5),
         task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION)),
+            task_write_head(a, zero, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
         task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION)),
+            task_write_head(a, zero, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
         task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION)),
+            task_write_head(a, zero, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
 
         task_group(a,
             task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP)),
 
         task_group(a,
-            task_write_head(a, one, HEAD_WRITING_DURATION)),
+            task_write_head(a, one, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
         task_group(a,
-            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt"))),
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
+            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
 
         // task_fun(a),
 
@@ -798,25 +808,16 @@ void plug_update(Env env)
             float y = head_rec.y + head_rec.height + top_margin;
 
             for (size_t i = 0; i < p->scene.table.count; ++i) {
-                for (size_t j = 0; j < 2; ++j) {
+                for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
                     Rectangle rec = {
-                        .x = x + j*field_width,
+                        .x = x + j*field_width + (j >= 2 ? right_margin : 0.0f),
                         .y = y + i*field_height,
                         .width = field_width,
                         .height = field_height,
                     };
-                    symbol_in_rec(rec, p->scene.table.items[i].symbols[j], symbol_size*p->scene.table.symbols_t,
-                                  ColorAlpha(CELL_COLOR, p->scene.table.symbols_t));
-                }
-
-                for (size_t j = 2; j < COUNT_RULE_SYMBOLS; ++j) {
-                    Rectangle rec = {
-                        .x = x + j*field_width + right_margin,
-                        .y = y + i*field_height,
-                        .width = field_width,
-                        .height = field_height,
-                    };
-                    symbol_in_rec(rec, p->scene.table.items[i].symbols[j], symbol_size*p->scene.table.symbols_t,
+                    symbol_in_rec(rec,
+                                  p->scene.table.items[i].symbols[j],
+                                  symbol_size*p->scene.table.symbols_t + symbol_size*p->scene.table.items[i].bump[j]*0.4,
                                   ColorAlpha(CELL_COLOR, p->scene.table.symbols_t));
                 }
             }
