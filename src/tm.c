@@ -92,7 +92,6 @@ typedef enum {
 
 typedef struct {
     Symbol symbols[COUNT_RULE_SYMBOLS];
-    float highlight[COUNT_RULE_SYMBOLS];
 } Rule;
 
 typedef struct {
@@ -571,39 +570,27 @@ void plug_reset(void)
 
         task_wait(a, 0.5),
         task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION*4),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION*4)),
+            task_write_head(a, zero, HEAD_WRITING_DURATION)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION*4),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_MOVING_DURATION*4)),
-        task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION*4),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
         task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION*2),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION*2)),
+            task_write_head(a, zero, HEAD_WRITING_DURATION)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION*2),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION*2)),
-        task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION*2),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
         task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION)),
+            task_write_head(a, zero, HEAD_WRITING_DURATION)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION)),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
 
         task_group(a,
-            task_move_and_reset_scalar(a, &p->scene.table.items[1].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION),
             task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION)),
 
         task_group(a,
-            task_write_head(a, one, HEAD_WRITING_DURATION),
-            task_move_and_reset_scalar(a, &p->scene.table.items[0].highlight[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION)),
+            task_write_head(a, one, HEAD_WRITING_DURATION)),
         task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
-            task_move_and_reset_scalar(a, &p->scene.table.items[0].highlight[RULE_STEP], 1.0f, HEAD_WRITING_DURATION)),
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
         task_group(a,
-            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
-            task_move_and_reset_scalar(a, &p->scene.table.items[0].highlight[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION)),
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt"))),
 
         // task_fun(a),
 
@@ -817,13 +804,8 @@ void plug_update(Env env)
                         .width = field_width,
                         .height = field_height,
                     };
-                    float h = p->scene.table.items[i].highlight[j];
-                    DrawRectangleRec(rec, ColorFromNormalized(QuaternionLerp(ColorNormalize(BACKGROUND_COLOR), ColorNormalize(CELL_COLOR), sinpulse(h))));
                     symbol_in_rec(rec, p->scene.table.items[i].symbols[j], symbol_size*p->scene.table.symbols_t,
-                                  ColorFromNormalized(QuaternionLerp(
-                                      ColorNormalize(ColorAlpha(CELL_COLOR, p->scene.table.symbols_t)),
-                                      ColorNormalize(BACKGROUND_COLOR),
-                                      sinpulse(h))));
+                                  ColorAlpha(CELL_COLOR, p->scene.table.symbols_t));
                 }
 
                 for (size_t j = 2; j < COUNT_RULE_SYMBOLS; ++j) {
@@ -833,13 +815,8 @@ void plug_update(Env env)
                         .width = field_width,
                         .height = field_height,
                     };
-                    float h = p->scene.table.items[i].highlight[j];
-                    DrawRectangleRec(rec, ColorFromNormalized(QuaternionLerp(ColorNormalize(BACKGROUND_COLOR), ColorNormalize(CELL_COLOR), sinpulse(h))));
                     symbol_in_rec(rec, p->scene.table.items[i].symbols[j], symbol_size*p->scene.table.symbols_t,
-                                  ColorFromNormalized(QuaternionLerp(
-                                      ColorNormalize(ColorAlpha(CELL_COLOR, p->scene.table.symbols_t)),
-                                      ColorNormalize(BACKGROUND_COLOR),
-                                      sinpulse(h))));
+                                  ColorAlpha(CELL_COLOR, p->scene.table.symbols_t));
                 }
             }
 
