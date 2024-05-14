@@ -3,6 +3,7 @@
 
 #include "env.h"
 #include "arena.h"
+#include "interpolators.h"
 
 typedef size_t Tag;
 
@@ -58,31 +59,34 @@ typedef struct {
     Wait_Data wait;
     float *value;
     float start, target;
+    Interp_Func func;
 } Move_Scalar_Data;
 
 bool move_scalar_update(Move_Scalar_Data *data, Env env);
-Move_Scalar_Data move_scalar_data(float *value, float target, float duration);
-Task task_move_scalar(Arena *a, float *value, float target, float duration);
+Move_Scalar_Data move_scalar_data(float *value, float target, float duration, Interp_Func func);
+Task task_move_scalar(Arena *a, float *value, float target, float duration, Interp_Func);
 
 typedef struct {
     Wait_Data wait;
     Vector2 *value;
     Vector2 start, target;
+    Interp_Func func;
 } Move_Vec2_Data;
 
 bool move_vec2_update(Move_Vec2_Data *data, Env env);
-Move_Vec2_Data move_vec2_data(Vector2 *value, Vector2 target, float duration);
-Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration);
+Move_Vec2_Data move_vec2_data(Vector2 *value, Vector2 target, float duration, Interp_Func func);
+Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration, Interp_Func func);
 
 typedef struct {
     Wait_Data wait;
     Vector4 *value;
     Vector4 start, target;
+    Interp_Func func;
 } Move_Vec4_Data;
 
 bool move_vec4_update(Move_Vec4_Data *data, Env env);
-Move_Vec4_Data move_vec4_data(Vector4 *value, Vector4 target, float duration);
-Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration);
+Move_Vec4_Data move_vec4_data(Vector4 *value, Vector4 target, float duration, Interp_Func func);
+Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration, Interp_Func func);
 
 typedef struct {
     Tasks tasks;

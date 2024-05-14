@@ -97,24 +97,25 @@ bool move_scalar_update(Move_Scalar_Data *data, Env env)
         *data->value = Lerp(
             data->start,
             data->target,
-            smoothstep(wait_interp(&data->wait)));
+            interp_func(data->func, wait_interp(&data->wait)));
     }
 
     return finished;
 }
 
-Move_Scalar_Data move_scalar_data(float *value, float target, float duration)
+Move_Scalar_Data move_scalar_data(float *value, float target, float duration, Interp_Func func)
 {
     return (Move_Scalar_Data) {
         .wait = wait_data(duration),
         .value = value,
         .target = target,
+        .func = func,
     };
 }
 
-Task task_move_scalar(Arena *a, float *value, float target, float duration)
+Task task_move_scalar(Arena *a, float *value, float target, float duration, Interp_Func func)
 {
-    Move_Scalar_Data data = move_scalar_data(value, target, duration);
+    Move_Scalar_Data data = move_scalar_data(value, target, duration, func);
     return (Task) {
         .tag = TASK_MOVE_SCALAR_TAG,
         .data = arena_memdup(a, &data, sizeof(data)),
@@ -135,23 +136,24 @@ bool move_vec2_update(Move_Vec2_Data *data, Env env)
         *data->value = Vector2Lerp(
             data->start,
             data->target,
-            smoothstep(wait_interp(&data->wait)));
+            interp_func(data->func, wait_interp(&data->wait)));
     }
     return finished;
 }
 
-Move_Vec2_Data move_vec2_data(Vector2 *value, Vector2 target, float duration)
+Move_Vec2_Data move_vec2_data(Vector2 *value, Vector2 target, float duration, Interp_Func func)
 {
     return (Move_Vec2_Data) {
         .wait = wait_data(duration),
         .value = value,
         .target = target,
+        .func = func,
     };
 }
 
-Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration)
+Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration, Interp_Func func)
 {
-    Move_Vec2_Data data = move_vec2_data(value, target, duration);
+    Move_Vec2_Data data = move_vec2_data(value, target, duration, func);
     return (Task) {
         .tag = TASK_MOVE_VEC2_TAG,
         .data = arena_memdup(a, &data, sizeof(data)),
@@ -172,24 +174,25 @@ bool move_vec4_update(Move_Vec4_Data *data, Env env)
         *data->value = QuaternionLerp(
             data->start,
             data->target,
-            smoothstep(wait_interp(&data->wait)));
+            interp_func(data->func, wait_interp(&data->wait)));
     }
 
     return finished;
 }
 
-Move_Vec4_Data move_vec4_data(Vector4 *value, Vector4 target, float duration)
+Move_Vec4_Data move_vec4_data(Vector4 *value, Vector4 target, float duration, Interp_Func func)
 {
     return (Move_Vec4_Data) {
         .wait = wait_data(duration),
         .value = value,
         .target = target,
+        .func = func,
     };
 }
 
-Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration)
+Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration, Interp_Func func)
 {
-    Move_Vec4_Data data = move_vec4_data(value, target, duration);
+    Move_Vec4_Data data = move_vec4_data(value, target, duration, func);
     return (Task) {
         .tag = TASK_MOVE_VEC4_TAG,
         .data = arena_memdup(a, &data, sizeof(data)),

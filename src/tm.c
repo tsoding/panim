@@ -168,16 +168,16 @@ bool move_and_reset_scalar_update(Move_And_Reset_Scalar_Data *data, Env env)
     return done;
 }
 
-Move_And_Reset_Scalar_Data move_and_reset_scalar(float *value, float target, float duration)
+Move_And_Reset_Scalar_Data move_and_reset_scalar(float *value, float target, float duration, Interp_Func func)
 {
     return (Move_And_Reset_Scalar_Data) {
-        .move_scalar = move_scalar_data(value, target, duration)
+        .move_scalar = move_scalar_data(value, target, duration, func)
     };
 }
 
-Task task_move_and_reset_scalar(Arena *a, float *value, float target, float duration)
+Task task_move_and_reset_scalar(Arena *a, float *value, float target, float duration, Interp_Func func)
 {
-    Move_And_Reset_Scalar_Data data = move_and_reset_scalar(value, target, duration);
+    Move_And_Reset_Scalar_Data data = move_and_reset_scalar(value, target, duration, func);
     return (Task) {
         .tag = p->TASK_MOVE_AND_RESET_SCALAR_TAG,
         .data = arena_memdup(a, &data, sizeof(data))
@@ -478,13 +478,14 @@ static void unload_assets(void)
 
 static Task task_outro(Arena *a, float duration)
 {
+    Interp_Func func = FUNC_SMOOTHSTEP;
     return task_group(a,
-        task_move_scalar(a, &p->scene.t, 0.0, duration),
-        task_move_scalar(a, &p->scene.tape_y_offset, 0.0, duration),
-        task_move_scalar(a, &p->scene.table.lines_t, 0.0, duration),
-        task_move_scalar(a, &p->scene.table.symbols_t, 0.0, duration),
-        task_move_scalar(a, &p->scene.table.head_t, 0.0, duration),
-        task_move_scalar(a, &p->scene.head.state_t, 0.0, duration));
+        task_move_scalar(a, &p->scene.t, 0.0, duration, func),
+        task_move_scalar(a, &p->scene.tape_y_offset, 0.0, duration, func),
+        task_move_scalar(a, &p->scene.table.lines_t, 0.0, duration, func),
+        task_move_scalar(a, &p->scene.table.symbols_t, 0.0, duration, func),
+        task_move_scalar(a, &p->scene.table.head_t, 0.0, duration, func),
+        task_move_scalar(a, &p->scene.head.state_t, 0.0, duration, func));
 }
 
 static Task task_fun(Arena *a)
@@ -559,14 +560,14 @@ void plug_reset(void)
     p->scene.task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
         task_wait(a, 0.75),
-        task_move_scalar(a, &p->scene.tape_y_offset, -250.0, 0.5),
+        task_move_scalar(a, &p->scene.tape_y_offset, -250.0, 0.5, FUNC_SMOOTHSTEP),
         task_wait(a, 0.75),
 
         task_seq(a,
-            task_move_scalar(a, &p->scene.table.lines_t, 1.0, 0.5),
-            task_move_scalar(a, &p->scene.table.symbols_t, 1.0, 0.5),
-            task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5),
-            task_move_scalar(a, &p->scene.table.head_t, 1.0, 0.5)),
+            task_move_scalar(a, &p->scene.table.lines_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
+            task_move_scalar(a, &p->scene.table.symbols_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
+            task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
+            task_move_scalar(a, &p->scene.table.head_t, 1.0, 0.5, FUNC_SMOOTHSTEP)),
 
         task_wait(a, 0.5),
         task_group(a,
@@ -583,7 +584,7 @@ void plug_reset(void)
             task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION)),
 
         task_group(a,
-            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION)),
+            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP)),
 
         task_group(a,
             task_write_head(a, one, HEAD_WRITING_DURATION)),
