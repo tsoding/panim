@@ -8,6 +8,7 @@ void cflags(Nob_Cmd *cmd)
 {
     nob_cmd_append(cmd, "-Wall", "-Wextra", "-ggdb");
     nob_cmd_append(cmd, "-I./raylib/raylib-5.0_linux_amd64/include");
+    nob_cmd_append(cmd, "-I./src/");
 }
 
 void cc(Nob_Cmd *cmd)
@@ -111,6 +112,7 @@ int main(int argc, char **argv)
     if (!build_plug_c(force, &cmd, SRC_DIR"/tm.c", BUILD_DIR"/libtm.so")) return 1;
     if (!build_plug_c(force, &cmd, SRC_DIR"/template.c", BUILD_DIR"/libtemplate.so")) return 1;
     if (!build_plug_c(force, &cmd, SRC_DIR"/squares.c", BUILD_DIR"/libsquare.so")) return 1;
+    if (!build_plug_c(force, &cmd, SRC_DIR"/bezier.c", BUILD_DIR"/libbezier.so")) return 1;
     if (!build_plug_cxx(force, &cmd, SRC_DIR"/probe.cpp", BUILD_DIR"/libprobe.so")) return 1;
 
     {

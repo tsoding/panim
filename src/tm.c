@@ -11,7 +11,7 @@
 #include "interpolators.h"
 #include "tasks.h"
 
-#if 1
+#if 0
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
@@ -153,9 +153,63 @@ typedef struct {
     Tag TASK_WRITE_ALL_TAG;
     Tag TASK_WRITE_CELL_TAG;
     Tag TASK_MOVE_AND_RESET_SCALAR_TAG;
+    Tag TASK_MOVE_SCALAR_BEZIER_TAG;
 } Plug;
 
 static Plug *p = NULL;
+
+typedef struct {
+    Wait_Data wait;
+    float *value;
+    float start, target;
+    Vector2 bezier[4];
+} Move_Scalar_Bezier_Data;
+
+bool move_scalar_bezier_update(Move_Scalar_Bezier_Data *data, Env env)
+{
+    if (wait_done(&data->wait)) return true;
+
+    if (!data->wait.started && data->value) {
+        data->start = *data->value;
+    }
+
+    bool finished = wait_update(&data->wait, env);
+
+    if (data->value) {
+        *data->value = Lerp(
+            data->start,
+            data->target,
+            cubic_bezier(wait_interp(&data->wait), data->bezier).y);
+        if (finished) {
+            *data->value = Lerp(
+                data->start,
+                data->target,
+                cubic_bezier(1.0f, data->bezier).y);
+        }
+    }
+
+    return finished;
+}
+
+Move_Scalar_Bezier_Data move_scalar_bezier(float *value, float target, float duration, Vector2 bezier[4])
+{
+    Move_Scalar_Bezier_Data data = {
+        .wait = wait_data(duration),
+        .value = value,
+        .target = target,
+    };
+    memcpy(data.bezier, bezier, sizeof(data.bezier));
+    return data;
+}
+
+Task task_move_scalar_bezier(Arena *a, float *value, float target, float duration, Vector2 bezier[4])
+{
+    Move_Scalar_Bezier_Data data = move_scalar_bezier(value, target, duration, bezier);
+    return (Task) {
+        .tag = p->TASK_MOVE_SCALAR_BEZIER_TAG,
+        .data = arena_memdup(a, &data, sizeof(data)),
+    };
+}
 
 typedef struct {
     Move_Scalar_Data move_scalar;
@@ -275,7 +329,9 @@ bool write_cell_update(Write_Cell_Data *data, Env env)
         env.play_sound(p->write_sound, p->write_wave);
     }
 
-    if (data->cell) data->cell->t = smoothstep(t2);
+    static Vector2 bezier[] = {{0.00, 0.00}, {0.63, 0.23}, {0.84, 1.66}, {1.00, 1.00}};
+
+    if (data->cell) data->cell->t = cubic_bezier(t2, bezier).y;
 
     if (finished && data->cell) {
         data->cell->symbol_a = data->cell->symbol_b;
@@ -330,7 +386,9 @@ bool write_head_update(Write_Head_Data *data, Env env)
         env.play_sound(p->write_sound, p->write_wave);
     }
 
-    if (cell) cell->t = smoothstep(t2);
+    static Vector2 bezier[] = {{0.00, 0.00}, {0.63, 0.23}, {0.84, 1.66}, {1.00, 1.00}};
+
+    if (cell) cell->t = cubic_bezier(t2, bezier).y;
 
     if (finished && cell) {
         cell->symbol_a = cell->symbol_b;
@@ -464,6 +522,9 @@ static void load_assets(void)
     });
     p->TASK_MOVE_AND_RESET_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)move_and_reset_scalar_update,
+    });
+    p->TASK_MOVE_SCALAR_BEZIER_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)move_scalar_bezier_update,
     });
 }
 
@@ -794,7 +855,7 @@ void plug_update(Env env)
             };
             watermark.x = state_rec.x,
             watermark.y = state_rec.y + state_rec.height;
-            text_in_rec(watermark, "x.com/tsoding", FONT_SIZE*0.25, ColorAlpha(CELL_COLOR, p->scene.t*0.5));
+            text_in_rec(watermark, "twitch.tv/tsoding", FONT_SIZE*0.25, ColorAlpha(CELL_COLOR, p->scene.t*0.5));
         }
 
         // Table
