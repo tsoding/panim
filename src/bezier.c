@@ -7,6 +7,11 @@
 #include "env.h"
 #include "nob.h"
 #include "interpolators.h"
+#include "plug.h"
+
+#define PLUG(name, ret, ...) ret name(__VA_ARGS__);
+LIST_OF_PLUGS
+#undef PLUG
 
 #define FONT_SIZE 32
 #define AXIS_THICCNESS 5.0
@@ -28,7 +33,6 @@ typedef struct {
     Font font;
     Vector2 nodes[COUNT_NODES];
     int dragged_node;
-    Nob_String_Builder sb;
 } Plug;
 
 static Plug *p;
@@ -83,8 +87,6 @@ void plug_post_reload(void *state)
     load_assets();
 }
 
-// {{0.00, 0.00}, {0.63, 0.23}, {0.84, 1.66}, {1.00, 1.00}}
-
 void plug_update(Env env)
 {
     Color background_color = ColorFromHSV(0, 0, 0.05);
@@ -113,8 +115,6 @@ void plug_update(Env env)
         if (dragging) {
             Vector2 *node = &p->nodes[p->dragged_node];
             *node = mouse;
-            // node->x = Clamp(node->x, 0.0, AXIS_LENGTH);
-            // node->y = Clamp(node->y, -AXIS_LENGTH, 0.0);
         }
 
         for (size_t i = 0; i < COUNT_NODES; ++i) {

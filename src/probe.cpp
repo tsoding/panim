@@ -9,6 +9,7 @@
 #include <raymath.h>
 #include "env.h"
 #include "interpolators.h"
+#include "plug.h"
 
 #define FONT_SIZE 68
 
@@ -127,6 +128,10 @@ static void unload_assets(void)
 }
 
 extern "C" {
+
+#define PLUG(name, ret, ...) ret name(__VA_ARGS__);
+LIST_OF_PLUGS
+#undef PLUG
 
 void plug_reset(void)
 {

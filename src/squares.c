@@ -8,6 +8,11 @@
 #include "env.h"
 #include "nob.h"
 #include "tasks.h"
+#include "plug.h"
+
+#define PLUG(name, ret, ...) ret name(__VA_ARGS__);
+LIST_OF_PLUGS
+#undef PLUG
 
 #define FONT_SIZE 68
 

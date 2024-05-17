@@ -42,6 +42,10 @@ static uint8_t silence[FFMPEG_SOUND_SPF*FFMPEG_SOUND_SAMPLE_SIZE_BYTES*FFMPEG_SO
 static float delta_time_multiplier = 1.0f;
 static float delta_time_multiplier_popup = 0.0f;
 
+#define PLUG(name, ret, ...) static ret (*name)(__VA_ARGS__);
+LIST_OF_PLUGS
+#undef PLUG
+
 static bool reload_libplug(const char *libplug_path)
 {
     if (libplug != NULL) {

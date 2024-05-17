@@ -5,6 +5,11 @@
 #include <raylib.h>
 #include <raymath.h>
 #include "env.h"
+#include "plug.h"
+
+#define PLUG(name, ret, ...) ret name(__VA_ARGS__);
+LIST_OF_PLUGS
+#undef PLUG
 
 #define FONT_SIZE 68
 

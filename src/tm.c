@@ -10,6 +10,11 @@
 #include "env.h"
 #include "interpolators.h"
 #include "tasks.h"
+#include "plug.h"
+
+#define PLUG(name, ret, ...) ret name(__VA_ARGS__);
+LIST_OF_PLUGS
+#undef PLUG
 
 #if 0
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)

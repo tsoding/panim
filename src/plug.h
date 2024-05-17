@@ -18,8 +18,4 @@
     PLUG(plug_reset, void, void)        /* Reset the state of the animation */ \
     PLUG(plug_finished, bool, void)     /* Check if the animation is finished */ \
 
-#define PLUG(name, ret, ...) ret (*name)(__VA_ARGS__);
-LIST_OF_PLUGS
-#undef PLUG
-
 #endif // PLUG_H_
