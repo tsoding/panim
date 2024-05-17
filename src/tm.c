@@ -578,6 +578,43 @@ static Task task_fun(Arena *a)
         task_write_all(a, symbol_text(a, "0")));
 }
 
+static Task task_inc(Arena *a, Symbol zero, Symbol one)
+{
+    return task_seq(a,
+        task_wait(a, 0.5),
+        task_group(a,
+            task_write_head(a, zero, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+        task_group(a,
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+        task_group(a,
+            task_write_head(a, zero, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+        task_group(a,
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+        task_group(a,
+            task_write_head(a, zero, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+        task_group(a,
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+
+        task_group(a,
+            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP)),
+
+        task_group(a,
+            task_write_head(a, one, HEAD_WRITING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+        task_group(a,
+            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
+            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
+        task_group(a,
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
+            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)));
+}
+
 void plug_reset(void)
 {
     Arena *a = &p->arena_state;
@@ -621,9 +658,9 @@ void plug_reset(void)
 
     p->scene.task = task_seq(a,
         task_intro(a, START_AT_CELL_INDEX),
-        task_wait(a, 0.75),
+        task_wait(a, 0.5),
         task_move_scalar(a, &p->scene.tape_y_offset, -250.0, 0.5, FUNC_SMOOTHSTEP),
-        task_wait(a, 0.75),
+        task_wait(a, 0.5),
 
         task_group(a,
             task_move_scalar(a, &p->scene.table.lines_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
@@ -631,42 +668,10 @@ void plug_reset(void)
             task_move_scalar(a, &p->scene.head.state_t, 1.0, 0.5, FUNC_SMOOTHSTEP),
             task_move_scalar(a, &p->scene.table.head_t, 1.0, 0.5, FUNC_SMOOTHSTEP)),
 
-        task_wait(a, 0.5),
-        task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-        task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-        task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-        task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-        task_group(a,
-            task_write_head(a, zero, HEAD_WRITING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-        task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[1].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-
-        task_group(a,
-            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP)),
-
-        task_group(a,
-            task_write_head(a, one, HEAD_WRITING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_WRITE], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-        task_group(a,
-            task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
-            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_STEP], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-        task_group(a,
-            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
-            task_move_scalar(a, &p->scene.table.items[0].bump[RULE_NEXT], 1.0f, HEAD_WRITING_DURATION, FUNC_SINPULSE)),
-
+        task_inc(a, zero, one),
         // task_fun(a),
 
-        task_wait(a, 2.0),
+        task_wait(a, 1.5),
         task_outro(a, INTRO_DURATION),
         task_wait(a, 0.5)
         );
@@ -855,7 +860,7 @@ void plug_update(Env env)
             };
             watermark.x = state_rec.x,
             watermark.y = state_rec.y + state_rec.height;
-            text_in_rec(watermark, "twitch.tv/tsoding", FONT_SIZE*0.25, ColorAlpha(CELL_COLOR, p->scene.t*0.5));
+            text_in_rec(watermark, "x.com/tsoding", FONT_SIZE*0.25, ColorAlpha(CELL_COLOR, p->scene.t*0.5));
         }
 
         // Table
