@@ -5,6 +5,7 @@
 #include <raylib.h>
 #include <raymath.h>
 #include "env.h"
+#define NOB_IMPLEMENTATION
 #include "nob.h"
 #include "interpolators.h"
 #include "plug.h"
@@ -33,6 +34,7 @@ typedef struct {
     Font font;
     Vector2 nodes[COUNT_NODES];
     int dragged_node;
+    Nob_String_Builder sb;
 } Plug;
 
 static Plug *p;
@@ -87,6 +89,75 @@ void plug_post_reload(void *state)
     load_assets();
 }
 
+bool save_curve_to_file(const char *file_path, Nob_String_Builder *sb, Vector2 curve[COUNT_NODES])
+{
+    sb->count = 0;
+    for (size_t i = 0; i < COUNT_NODES; ++i) {
+        nob_sb_append_cstr(sb, TextFormat("%f %f\n", curve[i].x/AXIS_LENGTH, -p->nodes[i].y/AXIS_LENGTH));
+    }
+    bool ok = nob_write_entire_file(file_path, sb->items, sb->count);
+    if (ok) TraceLog(LOG_INFO, "Saved curve to %s", file_path);
+    return ok;
+}
+
+bool load_curve_from_file(const char *file_path, Nob_String_Builder *sb, Vector2 curve[COUNT_NODES])
+{
+    sb->count = 0;
+    if (!nob_read_entire_file(file_path, sb)) return false;
+    nob_sb_append_null(sb); // NULL-terminator is needed for strtof
+    Nob_String_View content = {
+        .data = sb->items,
+        .count = sb->count - 1, // Minus the NULL-terminator
+    };
+    size_t curve_count = 0;
+    size_t row = 1;
+    for (; content.count > 0 && curve_count < COUNT_NODES; ++row) {
+        Nob_String_View line = nob_sv_chop_by_delim(&content, '\n');
+        const char *line_start = line.data;
+
+        line = nob_sv_trim_left(line);
+        if (line.count == 0) continue; // Silently skipping empty lines
+
+        char *endptr = NULL;
+        Nob_String_View arg = nob_sv_chop_by_delim(&line, ' ');
+        curve[curve_count].x = strtof(arg.data, &endptr);
+        if (endptr == arg.data) {
+            TraceLog(LOG_WARNING, "%s:%zu:%zu: x value of node %zu is not a value float "SV_Fmt, file_path, row, arg.data - line_start + 1, curve_count, SV_Arg(arg));
+            continue;
+        }
+        curve[curve_count].x *= AXIS_LENGTH;
+
+        line = nob_sv_trim_left(line);
+        if (line.count == 0) {
+            TraceLog(LOG_WARNING, "%s:%zu:%zu: y value of node %zu is missing", file_path, row, line.data - line_start + 1, curve_count);
+            continue;
+        }
+
+        arg = nob_sv_chop_by_delim(&line, ' ');
+        curve[curve_count].y = strtof(arg.data, &endptr);
+        if (endptr == arg.data) {
+            TraceLog(LOG_WARNING, "%s:%zu:%zu: y value of node %zu is not a value float "SV_Fmt, file_path, row, arg.data - line_start + 1, curve_count, SV_Arg(arg));
+            continue;
+        }
+        curve[curve_count].y *= -AXIS_LENGTH;
+
+        TraceLog(LOG_INFO, "Parse field %f %f", curve[curve_count].x, curve[curve_count].y);
+        curve_count += 1;
+
+        line = nob_sv_trim_left(line);
+        if (line.count > 0) {
+            TraceLog(LOG_WARNING, "%s:%zu:%zu: garbage at the end of the line", file_path, row, line.data - line_start + 1);
+        }
+    }
+
+    content = nob_sv_trim_left(content);
+    if (content.count > 0) {
+        TraceLog(LOG_WARNING, "%s:%zu:1: garbage at the end of the file "SV_Fmt" %zu", file_path, row, SV_Arg(content), content.data[0]);
+    }
+
+    return true;
+}
+
 void plug_update(Env env)
 {
     Color background_color = ColorFromHSV(0, 0, 0.05);
@@ -117,9 +188,19 @@ void plug_update(Env env)
             *node = mouse;
         }
 
+        size_t res = 30;
+        for (size_t i = 0; i < res; ++i) {
+            DrawCircleV(
+                cubic_bezier((float)i/res, p->nodes),
+                BEZIER_SAMPLE_RADIUS,
+                BEZIER_SAMPLE_COLOR);
+        }
         for (size_t i = 0; i < COUNT_NODES; ++i) {
             bool hover = CheckCollisionPointCircle(mouse, p->nodes[i], NODE_RADIUS);
             DrawCircleV(p->nodes[i], NODE_RADIUS, hover ? NODE_HOVER_COLOR : NODE_COLOR);
+            const char *label = TextFormat("{%.2f, %.2f}", p->nodes[i].x/AXIS_LENGTH, p->nodes[i].y/AXIS_LENGTH);
+            Vector2 label_position = Vector2Add(p->nodes[i], (Vector2){NODE_RADIUS, NODE_RADIUS});
+            DrawTextEx(p->font, label, label_position, FONT_SIZE, 0, foreground_color);
             if (dragging) {
                 if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
                     p->dragged_node = -1;
@@ -131,31 +212,18 @@ void plug_update(Env env)
             }
         }
 
-        size_t res = 30;
-        for (size_t i = 0; i < res; ++i) {
-            DrawCircleV(
-                cubic_bezier((float)i/res, p->nodes),
-                BEZIER_SAMPLE_RADIUS,
-                BEZIER_SAMPLE_COLOR);
+        const char *curve_file_path = "assets/curves/sigmoid.txt";
+        if (IsKeyPressed(KEY_S)) {
+            if (save_curve_to_file(curve_file_path, &p->sb, p->nodes)) {
+                TraceLog(LOG_INFO, "Saved curve to %s", curve_file_path);
+            }
         }
 
-        const char *label =
-            TextFormat("{{%.2f, %.2f}, {%.2f, %.2f}, {%.2f, %.2f}, {%.2f, %.2f}}",
-                       p->nodes[0].x/AXIS_LENGTH, p->nodes[0].y/AXIS_LENGTH,
-                       p->nodes[1].x/AXIS_LENGTH, p->nodes[1].y/AXIS_LENGTH,
-                       p->nodes[2].x/AXIS_LENGTH, p->nodes[2].y/AXIS_LENGTH,
-                       p->nodes[3].x/AXIS_LENGTH, p->nodes[3].y/AXIS_LENGTH);
-
-        if (IsKeyPressed(KEY_C)) {
-            SetClipboardText(label);
+        if (IsKeyPressed(KEY_L)) {
+            if (load_curve_from_file(curve_file_path, &p->sb, p->nodes)) {
+                TraceLog(LOG_INFO, "Loaded curve from %s", curve_file_path);
+            }
         }
-
-        Vector2 label_size = MeasureTextEx(p->font, label, FONT_SIZE, 0);
-        Vector2 label_position = {0.0, 0.0};
-        label_position.y -= AXIS_LENGTH + LABEL_PADDING;
-        label_position.x += AXIS_LENGTH/2;
-        label_position.x -= label_size.x/2;
-        DrawTextEx(p->font, label, label_position, FONT_SIZE, 0, foreground_color);
     }
     EndMode2D();
 }
