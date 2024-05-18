@@ -1,0 +1,21 @@
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+\section{Newton's Method for Bezier Curve}
+\begin{align}
+  x(t) &= x_0*(1 - t)^3 \\ 
+       &+ 3x_1(1 - t)^2t \\
+       &+ 3x_2(1 - t)t^2 \\
+       &+ x_3t^3; \\
+  x'(t) &= x_0(-3)(1 - t)^2 \\ 
+        &+ 3x_1\left(2(1 - t)(-1)t + (1 - t)^2\right) \\
+        &+ 3x_2\left((-1)t^2 + (1 - t)2t\right) \\
+        &+ 3x_3t^2 \\
+        &= -3x_0(1 - t)^2 \\ 
+        &+ 3x_1(1 - t)^2 \\
+        &- 6x_1(1 - t)t \\
+        &+ 6x_2(1 - t)t \\
+        &- 3x_2t^2 \\
+        &+ 3x_3t^2;
+\end{align}
+\end{document}

@@ -181,16 +181,13 @@ bool move_scalar_bezier_update(Move_Scalar_Bezier_Data *data, Env env)
     bool finished = wait_update(&data->wait, env);
 
     if (data->value) {
+        float x = wait_interp(&data->wait);
+        float t = cuber_bezier_newton(x, data->bezier, 5);
+
         *data->value = Lerp(
             data->start,
             data->target,
-            cubic_bezier(wait_interp(&data->wait), data->bezier).y);
-        if (finished) {
-            *data->value = Lerp(
-                data->start,
-                data->target,
-                cubic_bezier(1.0f, data->bezier).y);
-        }
+            cubic_bezier(t, data->bezier).y);
     }
 
     return finished;
@@ -336,7 +333,11 @@ bool write_cell_update(Write_Cell_Data *data, Env env)
 
     static Vector2 bezier[] = {{0.00, 0.00}, {0.63, 0.23}, {0.84, 1.66}, {1.00, 1.00}};
 
-    if (data->cell) data->cell->t = cubic_bezier(t2, bezier).y;
+    if (data->cell) {
+        float x = t2;
+        float t = cuber_bezier_newton(x, bezier, 5);
+        data->cell->t = cubic_bezier(t, bezier).y;
+    }
 
     if (finished && data->cell) {
         data->cell->symbol_a = data->cell->symbol_b;
@@ -393,7 +394,11 @@ bool write_head_update(Write_Head_Data *data, Env env)
 
     static Vector2 bezier[] = {{0.00, 0.00}, {0.63, 0.23}, {0.84, 1.66}, {1.00, 1.00}};
 
-    if (cell) cell->t = cubic_bezier(t2, bezier).y;
+    if (cell) {
+        float x = t2;
+        float t = cuber_bezier_newton(x, bezier, 5);
+        cell->t = cubic_bezier(t, bezier).y;
+    }
 
     if (finished && cell) {
         cell->symbol_a = cell->symbol_b;

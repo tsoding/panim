@@ -189,9 +189,10 @@ void plug_update(Env env)
         }
 
         size_t res = 30;
-        for (size_t i = 0; i < res; ++i) {
+        for (size_t i = 0; i <= res; ++i) {
+            float t = (float)i/res;
             DrawCircleV(
-                cubic_bezier((float)i/res, p->nodes),
+                cubic_bezier(t, p->nodes),
                 BEZIER_SAMPLE_RADIUS,
                 BEZIER_SAMPLE_COLOR);
         }
@@ -210,6 +211,20 @@ void plug_update(Env env)
                     p->dragged_node = i;
                 }
             }
+        }
+
+        {
+            Vector2 start_pos = {
+                .x = mouse.x,
+                .y = 0,
+            };
+            Vector2 end_pos = {
+                .x = mouse.x,
+                .y = -AXIS_LENGTH,
+            };
+            DrawLineEx(start_pos, end_pos, HANDLE_THICCNESS, RED);
+            float t = cuber_bezier_newton(mouse.x, p->nodes, 5);
+            DrawCircleV(cubic_bezier(t, p->nodes), NODE_RADIUS, PURPLE);
         }
 
         const char *curve_file_path = "assets/curves/sigmoid.txt";
