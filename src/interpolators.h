@@ -8,6 +8,8 @@
 typedef enum {
     FUNC_SINSTEP,
     FUNC_SMOOTHSTEP,
+    FUNC_SQR,
+    FUNC_SQRT,
     FUNC_SINPULSE,
 } Interp_Func;
 
@@ -45,6 +47,8 @@ static inline Vector2 cubic_bezier(float t, Vector2 nodes[4])
 static inline float interp_func(Interp_Func func, float t)
 {
     switch (func) {
+    case FUNC_SQR:        return t*t;
+    case FUNC_SQRT:       return sqrtf(t);
     case FUNC_SINSTEP:    return sinstep(t);
     case FUNC_SMOOTHSTEP: return smoothstep(t);
     case FUNC_SINPULSE:   return sinpulse(t);
