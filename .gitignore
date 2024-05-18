@@ -4,3 +4,8 @@ nob.old
 *.mp4
 *.wav
 *~
+
+# LaTeX
+*.aux
+*.log
+*.pdf
