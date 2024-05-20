@@ -167,9 +167,13 @@ void plug_update(Env env)
 
     Camera2D camera = {
         .zoom = 0.8,
+        .target = {
+            AXIS_LENGTH/2,
+            -AXIS_LENGTH/2,
+        },
         .offset = {
-            .x = env.screen_width/2 - AXIS_LENGTH/2,
-            .y = env.screen_height/2 + AXIS_LENGTH/2,
+            .x = env.screen_width/2,
+            .y = env.screen_height/2,
         },
     };
 
