@@ -214,16 +214,17 @@ void plug_update(Env env)
         }
 
         {
+            float x = Clamp(mouse.x, 0, AXIS_LENGTH);
             Vector2 start_pos = {
-                .x = mouse.x,
+                .x = x,
                 .y = 0,
             };
             Vector2 end_pos = {
-                .x = mouse.x,
+                .x = x,
                 .y = -AXIS_LENGTH,
             };
             DrawLineEx(start_pos, end_pos, HANDLE_THICCNESS, RED);
-            float t = cuber_bezier_newton(mouse.x, p->nodes, 5);
+            float t = cuber_bezier_newton(x, p->nodes, 5);
             DrawCircleV(cubic_bezier(t, p->nodes), NODE_RADIUS, PURPLE);
         }
 
