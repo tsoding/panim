@@ -26,6 +26,7 @@ LIST_OF_PLUGS
 #define BEZIER_SAMPLE_RADIUS 5
 #define BEZIER_SAMPLE_COLOR YELLOW
 #define LABEL_PADDING 100.0
+#define CURVE_FILE_PATH "assets/curves/sigmoid.txt"
 
 #define COUNT_NODES 4
 
@@ -51,45 +52,7 @@ static void unload_assets(void)
     UnloadFont(p->font);
 }
 
-void plug_reset(void)
-{
-    p->dragged_node = -1;
-    p->nodes[0] = (Vector2){0.0, 0.0};
-    p->nodes[1] = (Vector2){AXIS_LENGTH*0.5, AXIS_LENGTH*-0.5};
-    p->nodes[2] = (Vector2){AXIS_LENGTH*0.75, AXIS_LENGTH*-0.75};
-    p->nodes[3] = (Vector2){AXIS_LENGTH, -AXIS_LENGTH};
-}
-
-void plug_init(void)
-{
-    p = malloc(sizeof(*p));
-    assert(p != NULL);
-    memset(p, 0, sizeof(*p));
-    p->size = sizeof(*p);
-
-    load_assets();
-    plug_reset();
-}
-
-void *plug_pre_reload(void)
-{
-    unload_assets();
-    return p;
-}
-
-void plug_post_reload(void *state)
-{
-    p = state;
-    if (p->size < sizeof(*p)) {
-        TraceLog(LOG_INFO, "Migrating plug state schema %zu bytes -> %zu bytes", p->size, sizeof(*p));
-        p = realloc(p, sizeof(*p));
-        p->size = sizeof(*p);
-    }
-
-    load_assets();
-}
-
-bool save_curve_to_file(const char *file_path, Nob_String_Builder *sb, Vector2 curve[COUNT_NODES])
+static bool save_curve_to_file(const char *file_path, Nob_String_Builder *sb, Vector2 curve[COUNT_NODES])
 {
     sb->count = 0;
     for (size_t i = 0; i < COUNT_NODES; ++i) {
@@ -100,7 +63,7 @@ bool save_curve_to_file(const char *file_path, Nob_String_Builder *sb, Vector2 c
     return ok;
 }
 
-bool load_curve_from_file(const char *file_path, Nob_String_Builder *sb, Vector2 curve[COUNT_NODES])
+static bool load_curve_from_file(const char *file_path, Nob_String_Builder *sb, Vector2 curve[COUNT_NODES])
 {
     sb->count = 0;
     if (!nob_read_entire_file(file_path, sb)) return false;
@@ -156,6 +119,43 @@ bool load_curve_from_file(const char *file_path, Nob_String_Builder *sb, Vector2
     }
 
     return true;
+}
+
+void plug_reset(void)
+{
+    p->dragged_node = -1;
+    if (load_curve_from_file(CURVE_FILE_PATH, &p->sb, p->nodes)) {
+        TraceLog(LOG_INFO, "Loaded curve from %s", CURVE_FILE_PATH);
+    }
+}
+
+void plug_init(void)
+{
+    p = malloc(sizeof(*p));
+    assert(p != NULL);
+    memset(p, 0, sizeof(*p));
+    p->size = sizeof(*p);
+
+    load_assets();
+    plug_reset();
+}
+
+void *plug_pre_reload(void)
+{
+    unload_assets();
+    return p;
+}
+
+void plug_post_reload(void *state)
+{
+    p = state;
+    if (p->size < sizeof(*p)) {
+        TraceLog(LOG_INFO, "Migrating plug state schema %zu bytes -> %zu bytes", p->size, sizeof(*p));
+        p = realloc(p, sizeof(*p));
+        p->size = sizeof(*p);
+    }
+
+    load_assets();
 }
 
 void plug_update(Env env)
@@ -227,16 +227,9 @@ void plug_update(Env env)
             DrawCircleV(cubic_bezier(t, p->nodes), NODE_RADIUS, PURPLE);
         }
 
-        const char *curve_file_path = "assets/curves/sigmoid.txt";
         if (IsKeyPressed(KEY_S)) {
-            if (save_curve_to_file(curve_file_path, &p->sb, p->nodes)) {
-                TraceLog(LOG_INFO, "Saved curve to %s", curve_file_path);
-            }
-        }
-
-        if (IsKeyPressed(KEY_L)) {
-            if (load_curve_from_file(curve_file_path, &p->sb, p->nodes)) {
-                TraceLog(LOG_INFO, "Loaded curve from %s", curve_file_path);
+            if (save_curve_to_file(CURVE_FILE_PATH, &p->sb, p->nodes)) {
+                TraceLog(LOG_INFO, "Saved curve to %s", CURVE_FILE_PATH);
             }
         }
     }
