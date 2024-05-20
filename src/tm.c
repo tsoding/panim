@@ -16,7 +16,7 @@
 LIST_OF_PLUGS
 #undef PLUG
 
-#if 0
+#if 1
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
@@ -158,60 +158,9 @@ typedef struct {
     Tag TASK_WRITE_ALL_TAG;
     Tag TASK_WRITE_CELL_TAG;
     Tag TASK_MOVE_AND_RESET_SCALAR_TAG;
-    Tag TASK_MOVE_SCALAR_BEZIER_TAG;
 } Plug;
 
 static Plug *p = NULL;
-
-typedef struct {
-    Wait_Data wait;
-    float *value;
-    float start, target;
-    Vector2 bezier[4];
-} Move_Scalar_Bezier_Data;
-
-bool move_scalar_bezier_update(Move_Scalar_Bezier_Data *data, Env env)
-{
-    if (wait_done(&data->wait)) return true;
-
-    if (!data->wait.started && data->value) {
-        data->start = *data->value;
-    }
-
-    bool finished = wait_update(&data->wait, env);
-
-    if (data->value) {
-        float x = wait_interp(&data->wait);
-        float t = cuber_bezier_newton(x, data->bezier, 5);
-
-        *data->value = Lerp(
-            data->start,
-            data->target,
-            cubic_bezier(t, data->bezier).y);
-    }
-
-    return finished;
-}
-
-Move_Scalar_Bezier_Data move_scalar_bezier(float *value, float target, float duration, Vector2 bezier[4])
-{
-    Move_Scalar_Bezier_Data data = {
-        .wait = wait_data(duration),
-        .value = value,
-        .target = target,
-    };
-    memcpy(data.bezier, bezier, sizeof(data.bezier));
-    return data;
-}
-
-Task task_move_scalar_bezier(Arena *a, float *value, float target, float duration, Vector2 bezier[4])
-{
-    Move_Scalar_Bezier_Data data = move_scalar_bezier(value, target, duration, bezier);
-    return (Task) {
-        .tag = p->TASK_MOVE_SCALAR_BEZIER_TAG,
-        .data = arena_memdup(a, &data, sizeof(data)),
-    };
-}
 
 typedef struct {
     Move_Scalar_Data move_scalar;
@@ -331,13 +280,7 @@ bool write_cell_update(Write_Cell_Data *data, Env env)
         env.play_sound(p->write_sound, p->write_wave);
     }
 
-    static Vector2 bezier[] = {{0.00, 0.00}, {0.63, 0.23}, {0.84, 1.66}, {1.00, 1.00}};
-
-    if (data->cell) {
-        float x = t2;
-        float t = cuber_bezier_newton(x, bezier, 5);
-        data->cell->t = cubic_bezier(t, bezier).y;
-    }
+    if (data->cell) data->cell->t = smoothstep(t2);
 
     if (finished && data->cell) {
         data->cell->symbol_a = data->cell->symbol_b;
@@ -392,13 +335,7 @@ bool write_head_update(Write_Head_Data *data, Env env)
         env.play_sound(p->write_sound, p->write_wave);
     }
 
-    static Vector2 bezier[] = {{0.00, 0.00}, {0.63, 0.23}, {0.84, 1.66}, {1.00, 1.00}};
-
-    if (cell) {
-        float x = t2;
-        float t = cuber_bezier_newton(x, bezier, 5);
-        cell->t = cubic_bezier(t, bezier).y;
-    }
+    if (cell) cell->t = smoothstep(t2);
 
     if (finished && cell) {
         cell->symbol_a = cell->symbol_b;
@@ -532,9 +469,6 @@ static void load_assets(void)
     });
     p->TASK_MOVE_AND_RESET_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)move_and_reset_scalar_update,
-    });
-    p->TASK_MOVE_SCALAR_BEZIER_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)move_scalar_bezier_update,
     });
 }
 
