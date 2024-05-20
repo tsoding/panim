@@ -67,7 +67,7 @@ static bool load_curve_from_file(const char *file_path, Nob_String_Builder *sb, 
 {
     sb->count = 0;
     if (!nob_read_entire_file(file_path, sb)) return false;
-    nob_sb_append_null(sb); // NULL-terminator is needed for strtof
+    nob_sb_append_null(sb); // NULL-terminator is needed for strtof below
     Nob_String_View content = {
         .data = sb->items,
         .count = sb->count - 1, // Minus the NULL-terminator
@@ -244,4 +244,3 @@ bool plug_finished(void)
 
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
-// {{0.00, 0.00}, {0.81, 0.11}, {0.93, 3.00}, {1, 0}}
