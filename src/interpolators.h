@@ -6,6 +6,7 @@
 #include <raymath.h>
 
 typedef enum {
+    FUNC_ID,
     FUNC_SINSTEP,
     FUNC_SMOOTHSTEP,
     FUNC_SQR,
@@ -68,6 +69,7 @@ static inline float cuber_bezier_newton(float x, Vector2 nodes[4], size_t n)
 static inline float interp_func(Interp_Func func, float t)
 {
     switch (func) {
+    case FUNC_ID:         return t;
     case FUNC_SQR:        return t*t;
     case FUNC_SQRT:       return sqrtf(t);
     case FUNC_SINSTEP:    return sinstep(t);

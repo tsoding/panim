@@ -16,7 +16,7 @@
 LIST_OF_PLUGS
 #undef PLUG
 
-#if 1
+#if 0
     #define CELL_COLOR ColorFromHSV(0, 0.0, 0.15)
     #define HEAD_COLOR ColorFromHSV(200, 0.8, 0.8)
     #define BACKGROUND_COLOR ColorFromHSV(120, 0.0, 0.88)
@@ -31,10 +31,11 @@ LIST_OF_PLUGS
 #define FONT_SIZE (CELL_WIDTH*0.52f)
 #define CELL_PAD (CELL_WIDTH*0.15f)
 #define START_AT_CELL_INDEX 5
-#define HEAD_MOVING_DURATION 0.4f
-#define HEAD_WRITING_DURATION 0.4f
+#define HEAD_MOVING_DURATION 0.25f
+#define HEAD_WRITING_DURATION 0.25f
 #define INTRO_DURATION 1.0f
 #define TAPE_SIZE 50
+#define BUMP_DECIPATE 0.8f
 
 typedef enum {
     DIR_LEFT = -1,
@@ -158,6 +159,7 @@ typedef struct {
     Tag TASK_WRITE_ALL_TAG;
     Tag TASK_WRITE_CELL_TAG;
     Tag TASK_MOVE_AND_RESET_SCALAR_TAG;
+    Tag TASK_BUMP_TAG;
 } Plug;
 
 static Plug *p = NULL;
@@ -417,6 +419,38 @@ Task task_write_all(Arena *a, Symbol write)
     };
 }
 
+typedef struct {
+    size_t row;
+    size_t column;
+    bool done;
+} Bump_Data;
+
+bool bump_update(Bump_Data *data, Env env)
+{
+    (void) env;
+    if (data->done) return true;
+    p->scene.table.items[data->row].bump[data->column] = 1.0f;
+    data->done = true;
+    return true;
+}
+
+Bump_Data bump_data(size_t row, size_t column)
+{
+    return (Bump_Data) {
+        .row = row,
+        .column = column,
+    };
+}
+
+Task task_bump(Arena *a, size_t row, size_t column)
+{
+    Bump_Data data = bump_data(row, column);
+    return (Task) {
+        .tag = p->TASK_BUMP_TAG,
+        .data = arena_memdup(a, &data, sizeof(data)),
+    };
+}
+
 static Rule rule(Symbol state, Symbol read, Symbol write, Symbol step, Symbol next)
 {
     return (Rule) {
@@ -437,7 +471,7 @@ static void load_assets(void)
 
     int arrows_count = 0;
     int *arrows = LoadCodepoints("?abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-@./:)→←", &arrows_count);
-    p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE, arrows, arrows_count);
+    p->font = LoadFontEx("./assets/fonts/iosevka-regular.ttf", FONT_SIZE*3, arrows, arrows_count);
     UnloadCodepoints(arrows);
     GenTextureMipmaps(&p->font.texture);
     SetTextureFilter(p->font.texture, TEXTURE_FILTER_BILINEAR);
@@ -469,6 +503,9 @@ static void load_assets(void)
     });
     p->TASK_MOVE_AND_RESET_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)move_and_reset_scalar_update,
+    });
+    p->TASK_BUMP_TAG = task_vtable_register(a, (Task_Funcs) {
+        .update = (task_update_data_t)bump_update,
     });
 }
 
@@ -522,46 +559,63 @@ static Task task_fun(Arena *a)
         task_write_all(a, symbol_text(a, "0")));
 }
 
-static Task task_bump(Arena *a, size_t row, size_t column)
-{
-    return task_move_scalar(a, &p->scene.table.items[row].bump[column], 1.0f, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP);
-}
-
 static Task task_inc(Arena *a, Symbol zero, Symbol one)
 {
+    float delay = 0.8;
     return task_seq(a,
-        task_wait(a, 0.5),
+        task_wait(a, delay),
         task_group(a,
             task_write_head(a, zero, HEAD_WRITING_DURATION),
             task_bump(a, 1, RULE_WRITE)),
+        task_wait(a, delay),
         task_group(a,
             task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
             task_bump(a, 1, RULE_STEP)),
+        task_wait(a, delay),
+        task_group(a,
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Inc")),
+            task_bump(a, 1, RULE_NEXT)),
+        task_wait(a, delay),
         task_group(a,
             task_write_head(a, zero, HEAD_WRITING_DURATION),
             task_bump(a, 1, RULE_WRITE)),
+        task_wait(a, delay),
         task_group(a,
             task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
             task_bump(a, 1, RULE_STEP)),
+        task_wait(a, delay),
+        task_group(a,
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Inc")),
+            task_bump(a, 1, RULE_NEXT)),
+        task_wait(a, delay),
         task_group(a,
             task_write_head(a, zero, HEAD_WRITING_DURATION),
             task_bump(a, 1, RULE_WRITE)),
+        task_wait(a, delay),
         task_group(a,
             task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
             task_bump(a, 1, RULE_STEP)),
+        task_wait(a, delay),
+        task_group(a,
+            task_write_cell(a, &p->scene.head.state, symbol_text(a, "Inc")),
+            task_bump(a, 1, RULE_NEXT)),
+        task_wait(a, delay),
+
+        //task_wait(a, delay),
 
         task_group(a,
-            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP)),
-
-        task_group(a,
+            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP),
             task_write_head(a, one, HEAD_WRITING_DURATION),
             task_bump(a, 0, RULE_WRITE)),
+        task_wait(a, delay),
         task_group(a,
             task_move_head(a, DIR_RIGHT, HEAD_MOVING_DURATION),
             task_bump(a, 0, RULE_STEP)),
+        task_wait(a, delay),
         task_group(a,
             task_write_cell(a, &p->scene.head.state, symbol_text(a, "Halt")),
-            task_bump(a, 0, RULE_NEXT)));
+            task_bump(a, 0, RULE_NEXT)),
+        task_wait(a, delay));
 }
 
 void plug_reset(void)
@@ -751,6 +805,15 @@ void plug_update(Env env)
 
     p->scene.finished = task_update(p->scene.task, env);
 
+    for (size_t i = 0; i < p->scene.table.count; ++i) {
+        for (size_t j = 0; j < COUNT_RULE_SYMBOLS; ++j) {
+            float *t = &p->scene.table.items[i].bump[j];
+            if (*t > 0) {
+                *t = ((*t)*BUMP_DECIPATE - env.delta_time)/BUMP_DECIPATE;
+            }
+        }
+    }
+
     float head_thick = 20.0;
     float head_padding = head_thick*2.5;
     Rectangle head_rec = {
@@ -832,8 +895,16 @@ void plug_update(Env env)
                     };
                     symbol_in_rec(rec,
                                   p->scene.table.items[i].symbols[j],
-                                  symbol_size*p->scene.table.symbols_t + symbol_size*p->scene.table.items[i].bump[j]*0.4,
+                                  symbol_size*p->scene.table.symbols_t,
                                   ColorAlpha(CELL_COLOR, p->scene.table.symbols_t));
+                    if (p->scene.table.items[i].bump[j] > 0.0) {
+                        float t = (p->scene.table.items[i].bump[j]);
+                        t *= t;
+                        symbol_in_rec(rec,
+                                      p->scene.table.items[i].symbols[j],
+                                      symbol_size*p->scene.table.symbols_t + (1 - t)*symbol_size*6,
+                                      ColorAlpha(CELL_COLOR, p->scene.table.symbols_t*t));
+                    }
                 }
             }
 
