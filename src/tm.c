@@ -597,14 +597,14 @@ static Task task_inc(Arena *a, Symbol zero, Symbol one)
             task_bump(a, 1, RULE_STEP)),
         task_wait(a, delay),
         task_group(a,
+            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP),
             task_write_cell(a, &p->scene.head.state, symbol_text(a, "Inc")),
             task_bump(a, 1, RULE_NEXT)),
         task_wait(a, delay),
 
-        //task_wait(a, delay),
+        // task_wait(a, delay),
 
         task_group(a,
-            task_move_scalar(a, &p->scene.table.head_offset_t, 0.0, HEAD_WRITING_DURATION, FUNC_SMOOTHSTEP),
             task_write_head(a, one, HEAD_WRITING_DURATION),
             task_bump(a, 0, RULE_WRITE)),
         task_wait(a, delay),
