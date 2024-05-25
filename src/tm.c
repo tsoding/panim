@@ -71,7 +71,7 @@ typedef struct {
     Image_Index image_index;
 } Symbol;
 
-Symbol symbol_text(Arena *a, const char *text)
+static Symbol symbol_text(Arena *a, const char *text)
 {
     return (Symbol) {
         .kind = SYMBOL_TEXT,
@@ -79,7 +79,7 @@ Symbol symbol_text(Arena *a, const char *text)
     };
 }
 
-Symbol symbol_image(Image_Index image_index)
+static Symbol symbol_image(Image_Index image_index)
 {
     return (Symbol) {
         .kind = SYMBOL_IMAGE,
@@ -165,46 +165,17 @@ typedef struct {
     Tag TASK_WRITE_HEAD_TAG;
     Tag TASK_WRITE_ALL_TAG;
     Tag TASK_WRITE_CELL_TAG;
-    Tag TASK_MOVE_AND_RESET_SCALAR_TAG;
     Tag TASK_BUMP_TAG;
 } Plug;
 
 static Plug *p = NULL;
 
 typedef struct {
-    Move_Scalar_Data move_scalar;
-} Move_And_Reset_Scalar_Data;
-
-bool move_and_reset_scalar_update(Move_And_Reset_Scalar_Data *data, Env env)
-{
-    if (wait_done(&data->move_scalar.wait)) return true;
-    bool done = move_scalar_update(&data->move_scalar, env);
-    if (done) *data->move_scalar.value = data->move_scalar.start;
-    return done;
-}
-
-Move_And_Reset_Scalar_Data move_and_reset_scalar(float *value, float target, float duration, Interp_Func func)
-{
-    return (Move_And_Reset_Scalar_Data) {
-        .move_scalar = move_scalar_data(value, target, duration, func)
-    };
-}
-
-Task task_move_and_reset_scalar(Arena *a, float *value, float target, float duration, Interp_Func func)
-{
-    Move_And_Reset_Scalar_Data data = move_and_reset_scalar(value, target, duration, func);
-    return (Task) {
-        .tag = p->TASK_MOVE_AND_RESET_SCALAR_TAG,
-        .data = arena_memdup(a, &data, sizeof(data))
-    };
-}
-
-typedef struct {
     Wait_Data wait;
     size_t head;
 } Intro_Data;
 
-bool task_intro_update(Intro_Data *data, Env env)
+static bool task_intro_update(Intro_Data *data, Env env)
 {
     if (wait_done(&data->wait)) return true;
     if (!data->wait.started) p->scene.head.index = data->head;
@@ -213,7 +184,7 @@ bool task_intro_update(Intro_Data *data, Env env)
     return finished;
 }
 
-Intro_Data intro_data(size_t head)
+static Intro_Data intro_data(size_t head)
 {
     return (Intro_Data) {
         .wait = wait_data(INTRO_DURATION),
@@ -221,7 +192,7 @@ Intro_Data intro_data(size_t head)
     };
 }
 
-Task task_intro(Arena *a, size_t head)
+static Task task_intro(Arena *a, size_t head)
 {
     Intro_Data data = intro_data(head);
     return (Task) {
@@ -235,7 +206,7 @@ typedef struct {
     Direction dir;
 } Move_Head_Data;
 
-bool move_head_update(Move_Head_Data *data, Env env)
+static bool move_head_update(Move_Head_Data *data, Env env)
 {
     if (wait_done(&data->wait)) return true;
 
@@ -249,7 +220,7 @@ bool move_head_update(Move_Head_Data *data, Env env)
     return false;
 }
 
-Move_Head_Data move_head(Direction dir, float duration)
+static Move_Head_Data move_head(Direction dir, float duration)
 {
     return (Move_Head_Data) {
         .wait = wait_data(duration),
@@ -257,7 +228,7 @@ Move_Head_Data move_head(Direction dir, float duration)
     };
 }
 
-Task task_move_head(Arena *a, Direction dir, float duration)
+static Task task_move_head(Arena *a, Direction dir, float duration)
 {
     Move_Head_Data data = move_head(dir, duration);
     return (Task) {
@@ -272,7 +243,7 @@ typedef struct {
     Cell *cell;
 } Write_Cell_Data;
 
-bool write_cell_update(Write_Cell_Data *data, Env env)
+static bool write_cell_update(Write_Cell_Data *data, Env env)
 {
     if (wait_done(&data->wait)) return true;
 
@@ -299,7 +270,7 @@ bool write_cell_update(Write_Cell_Data *data, Env env)
     return finished;
 }
 
-Write_Cell_Data write_cell_data(Cell *cell, Symbol write)
+static Write_Cell_Data write_cell_data(Cell *cell, Symbol write)
 {
     return (Write_Cell_Data) {
         .wait = wait_data(HEAD_WRITING_DURATION),
@@ -308,7 +279,7 @@ Write_Cell_Data write_cell_data(Cell *cell, Symbol write)
     };
 }
 
-Task task_write_cell(Arena *a, Cell *cell, Symbol write)
+static Task task_write_cell(Arena *a, Cell *cell, Symbol write)
 {
     Write_Cell_Data data = write_cell_data(cell, write);
     return (Task) {
@@ -322,7 +293,7 @@ typedef struct {
     Symbol write;
 } Write_Head_Data;
 
-bool write_head_update(Write_Head_Data *data, Env env)
+static bool write_head_update(Write_Head_Data *data, Env env)
 {
     if (wait_done(&data->wait)) return true;
 
@@ -354,7 +325,7 @@ bool write_head_update(Write_Head_Data *data, Env env)
     return finished;
 }
 
-Write_Head_Data write_head_data(Symbol write, float duration)
+static Write_Head_Data write_head_data(Symbol write, float duration)
 {
     return (Write_Head_Data) {
         .wait = wait_data(duration),
@@ -362,7 +333,7 @@ Write_Head_Data write_head_data(Symbol write, float duration)
     };
 }
 
-Task task_write_head(Arena *a, Symbol write, float duration)
+static Task task_write_head(Arena *a, Symbol write, float duration)
 {
     Write_Head_Data data = write_head_data(write, duration);
     return (Task) {
@@ -376,7 +347,7 @@ typedef struct {
     Symbol write;
 } Write_All_Data;
 
-bool write_all_update(Write_All_Data *data, Env env)
+static bool write_all_update(Write_All_Data *data, Env env)
 {
     if (wait_done(&data->wait)) return true;
 
@@ -409,7 +380,7 @@ bool write_all_update(Write_All_Data *data, Env env)
     return finished;
 }
 
-Write_All_Data write_all_data(Symbol write)
+static Write_All_Data write_all_data(Symbol write)
 {
     return (Write_All_Data) {
         .write = write,
@@ -417,7 +388,7 @@ Write_All_Data write_all_data(Symbol write)
     };
 }
 
-Task task_write_all(Arena *a, Symbol write)
+static Task task_write_all(Arena *a, Symbol write)
 {
     Write_All_Data data = write_all_data(write);
     return (Task) {
@@ -432,7 +403,7 @@ typedef struct {
     bool done;
 } Bump_Data;
 
-bool bump_update(Bump_Data *data, Env env)
+static bool bump_update(Bump_Data *data, Env env)
 {
     (void) env;
     if (data->done) return true;
@@ -441,7 +412,7 @@ bool bump_update(Bump_Data *data, Env env)
     return true;
 }
 
-Bump_Data bump_data(size_t row, size_t column)
+static Bump_Data bump_data(size_t row, size_t column)
 {
     return (Bump_Data) {
         .row = row,
@@ -449,7 +420,7 @@ Bump_Data bump_data(size_t row, size_t column)
     };
 }
 
-Task task_bump(Arena *a, size_t row, size_t column)
+static Task task_bump(Arena *a, size_t row, size_t column)
 {
     Bump_Data data = bump_data(row, column);
     return (Task) {
@@ -510,9 +481,6 @@ static void load_assets(void)
     });
     p->TASK_WRITE_CELL_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)write_cell_update,
-    });
-    p->TASK_MOVE_AND_RESET_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)move_and_reset_scalar_update,
     });
     p->TASK_BUMP_TAG = task_vtable_register(a, (Task_Funcs) {
         .update = (task_update_data_t)bump_update,
@@ -688,8 +656,7 @@ void plug_reset(void)
 
         task_wait(a, 1.5),
         task_outro(a, INTRO_DURATION),
-        task_wait(a, 0.5)
-        );
+        task_wait(a, 0.5));
 }
 
 void plug_init(void)
