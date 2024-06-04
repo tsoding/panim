@@ -70,12 +70,16 @@ void plug_update(Env env)
 
     ClearBackground(background_color);
 
-    const char *text = "Panim Template";
-    Vector2 text_size = MeasureTextEx(p->font, text, FONT_SIZE, 0);
-
-    Vector2 position = {env.screen_width/2, env.screen_height/2};
-    position = Vector2Subtract(position, Vector2Scale(text_size, 0.5));
-    DrawTextEx(p->font, text, position, FONT_SIZE, 0, foreground_color);
+    Camera2D camera = {
+        .zoom = 1.0,
+        .offset = {env.screen_width/2, env.screen_height/2},
+    };
+    BeginMode2D(camera);
+        const char *text = "Panim Template";
+        Vector2 text_size = MeasureTextEx(p->font, text, FONT_SIZE, 0);
+        Vector2 position = Vector2Scale(text_size, -0.5);
+        DrawTextEx(p->font, text, position, FONT_SIZE, 0, foreground_color);
+    EndMode2D();
 }
 
 bool plug_finished(void)
