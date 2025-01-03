@@ -1,5 +1,6 @@
 import std::io;
 import std::math;
+import std::collections::list;
 import raylib5::rl;
 import future;
 
@@ -36,7 +37,7 @@ fn any! Lerp.poll(&self, any env) @dynamic {
 }
 
 fn Future lerp(float *place, float a, float b, float duration) {
-    return @tclone(Lerp {
+    return @clone(Lerp {
         .place = place,
         .a = a,
         .b = b,
@@ -60,7 +61,7 @@ fn any! Parallel.poll(&urmom, any env) @dynamic {
 }
 
 fn Future parallel(Future[] futures) {
-    return @tclone(Parallel {
+    return @clone(Parallel {
         .futures = futures,
     });
 }
@@ -82,33 +83,88 @@ fn any! Seq.poll(&urmom, any env) @dynamic {
 }
 
 fn Future seq(Future[] futures) {
-    return @tclone(Seq {
+    return @clone(Seq {
         .futures = futures,
     });
+}
+
+struct Patcher {
+    List(<Future*>) lerp;
+    List(<Future*>) par;
+    List(<Future*>) seq;
+}
+
+fn void Patcher.add(&urmom, Future *f) {
+    switch(f.type) {
+        case Lerp.typeid:
+            urmom.lerp.push(f);
+        case Parallel.typeid:
+            urmom.par.push(f);
+        case Seq.typeid:
+            urmom.seq.push(f);
+        default:
+            unreachable("unexpected type");
+    }
+}
+
+macro @list_patch(list, $Type) {
+    for (usz i = 0; i < list.len(); i++) {
+        *list[i] = (Future) any_make(list[i].ptr, $Type.typeid);
+    }
+}
+
+fn void Patcher.patch(&urmom) {
+    io::printfn("Patching futures");
+    @list_patch(urmom.lerp, Lerp);
+    @list_patch(urmom.par, Parallel);
+    @list_patch(urmom.seq, Seq);
+}
+
+fn void Patcher.clear(&urmom) {
+    urmom.lerp.clear();
+    urmom.par.clear();
+    urmom.seq.clear();
 }
 
 struct State {
     float t1, t2;
     bool finished;
     Future anim;
+    Patcher patcher;
 }
 
 State *state = null;
 
 fn void reset_anim()
 {
-    // TODO: clean up allocator::temp() here
-    state.anim = parallel(@tclone(Future[*] {
-        // TODO: Tuck the whole @tclone(Future[*]{ ... }) under the future constructors
+    // TODO: clean up allocator::heap() here
+    // Leaky-leaky
+    state.anim = parallel(@clone(Future[*] {
+        // TODO: Tuck the whole @clone(Future[*]{ ... }) under the future constructors
         // See if variadic args can be applied here
-        seq(@tclone(Future[*] {
+        seq(@clone(Future[*] {
             lerp(&state.t1, 0, 1, CYCLE_DURATION),
             lerp(&state.t1, 1, 0, CYCLE_DURATION/4),
         })),
-        seq(@tclone(Future[*] {
+        seq(@clone(Future[*] {
             lerp(&state.t2, 0, 1, CYCLE_DURATION + CYCLE_DURATION/4),
         }))
     }));
+
+    state.patcher.clear();
+
+    // TODO: reflection to do this automatically or something
+    // Maybe Future.traverse(fn void FutureTraverseFn(void *env, Future *f))?
+
+    state.patcher.add(&state.anim);
+    Parallel *p = anycast(state.anim, Parallel)!!;
+    foreach(&s: p.futures) {
+        state.patcher.add(s);
+        Seq *s1 = anycast(*s, Seq)!!;
+        foreach(&l: s1.futures) {
+            state.patcher.add(l);
+        }
+    }
 }
 
 fn void plug_init() @export("plug_init")
@@ -125,6 +181,8 @@ fn void* plug_pre_reload() @export("plug_pre_reload")
 fn void plug_post_reload(void *old_state) @export("plug_post_reload")
 {
     state = old_state;
+
+    state.patcher.patch();
 }
 
 fn void orbit_circle(Env env, float t, float radius, float orbit, Color color)

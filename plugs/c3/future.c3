@@ -13,7 +13,7 @@ fn any! FutureDone.poll(&self, any data) @dynamic {
 }
 
 macro Future done(value) {
-    return @tclone(FutureDone{@tclone(value)});
+    return @clone(FutureDone{@clone(value)});
 }
 
 struct FutureReject(Future) {
@@ -27,7 +27,7 @@ fn any! FutureReject.poll(&self, any data) @dynamic {
 fn Future reject(anyfault excuse) {
     FutureReject r = {};
     r.excuse = excuse;
-    return @tclone(r);
+    return @clone(r);
 }
 
 def FutureThenFunction = fn Future(any result);
@@ -53,7 +53,7 @@ fn any! FutureThen.poll(&self, any data) @dynamic {
 }
 
 macro Future Future.then(Future left, FutureThenFunction f) {
-    return @tclone(FutureThen {
+    return @clone(FutureThen {
         .left = left,
         .f = f
     });
@@ -86,7 +86,7 @@ fn any! FutureCatch.poll(&self, any data) @dynamic {
 // inline macro or something?), but since catch is a C3 keyword we decided to call
 // @catch. If it causes any problems in the future we should consider a different naming.
 macro Future Future.@catch(Future left, FutureCatchFunction f) {
-    return @tclone(FutureCatch {
+    return @clone(FutureCatch {
         .left = left,
         .f = f
     });
