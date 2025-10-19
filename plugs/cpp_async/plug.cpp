@@ -14,6 +14,11 @@
 
 #define SQUARE_SIZE 20
 
+#define AWAIT(task) do { \
+    auto __t = (task); \
+    while (!__t.done()) { __t(); co_yield 0; } \
+  } while (0)
+
 struct promise;
 
 struct Task : std::coroutine_handle<promise>
@@ -41,6 +46,7 @@ typedef struct {
     Task task;
     Vector2 position1;
     Vector2 position2;
+    Vector2 position3;
 } Plug;
 
 static Plug *p;
@@ -60,6 +66,13 @@ static Task move(Vector2 &position, Vector2 direction, size_t n)
     position = Vector2Add(position, direction);
     co_yield 0;
   }
+}
+
+static Task move2(Vector2 &position, Vector2 direction1, size_t n1, Vector2 direction2, size_t n2)
+{
+  AWAIT(move(position, direction1, n1));
+  printf("move 1 done\n");
+  AWAIT(move(position, direction2, n2));
 }
 
 static Task combine(std::vector<Task> tasks)
@@ -91,7 +104,8 @@ void plug_reset(void)
 {
     p->position1 = {0, 0};
     p->position2 = {300, 0};
-    p->task = combine({ move(p->position1, {0.1, 0}, 300), move(p->position2, {0, 0.1}, 300) });
+    p->position3 = {100, 300};
+    p->task = combine({ move(p->position1, {0.1, 0}, 300), move(p->position2, {0, 0.1}, 300), move2(p->position3, {0, 0.5}, 100, {0.5, 0}, 200) });
 }
 
 void plug_init(void)
@@ -143,6 +157,13 @@ void plug_update(Env env)
     boundary = {
         .x = p->position2.x,
         .y = p->position2.y,
+        .width = SQUARE_SIZE,
+        .height = SQUARE_SIZE,
+    };
+    DrawRectangleRec(boundary, foreground_color);
+    boundary = {
+        .x = p->position3.x,
+        .y = p->position3.y,
         .width = SQUARE_SIZE,
         .height = SQUARE_SIZE,
     };
