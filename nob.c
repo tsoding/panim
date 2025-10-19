@@ -75,7 +75,7 @@ bool build_plug_cxx(bool force, Nob_Cmd *cmd, const char *source_path, const cha
 
     if (force || rebuild_is_needed) {
         cxx(cmd);
-        nob_cmd_append(cmd, "-fPIC", "-shared", "-Wl,--no-undefined");
+        nob_cmd_append(cmd, "-fPIC", "-shared", "-Wl,--no-undefined", "-fcoroutines", "-std=c++20");
         nob_cmd_append(cmd, "-o", output_path);
         nob_cmd_append(cmd, source_path);
         libs(cmd);
@@ -129,6 +129,7 @@ int main(int argc, char **argv)
     if (!build_plug_c(force, &cmd, PLUGS_DIR"squares/plug.c", BUILD_DIR"libsquare.so")) return 1;
     if (!build_plug_c(force, &cmd, PLUGS_DIR"bezier/plug.c", BUILD_DIR"libbezier.so")) return 1;
     if (!build_plug_cxx(force, &cmd, PLUGS_DIR"cpp/plug.cpp", BUILD_DIR"libcpp.so")) return 1;
+    if (!build_plug_cxx(force, &cmd, PLUGS_DIR"cpp_async/plug.cpp", BUILD_DIR"libcpp_async.so")) return 1;
     {
         const char *output_path = BUILD_DIR"libc3";
         const char *source_paths[] = {
