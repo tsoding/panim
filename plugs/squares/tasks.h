@@ -5,37 +5,18 @@
 #include "arena.h"
 #include "interpolators.h"
 
-typedef size_t Tag;
-
-typedef struct {
-    Tag tag;
-    void *data;
-} Task;
-
 typedef bool (*task_update_data_t)(void*, Env);
 
 typedef struct {
     task_update_data_t update;
-} Task_Funcs;
-
-bool task_update(Task task, Env env);
-
-typedef struct {
-    Task_Funcs *items;
-    size_t count;
-    size_t capacity;
 } Task_VTable;
 
-extern Task_VTable task_vtable;
-extern Tag TASK_WAIT_TAG;
-extern Tag TASK_MOVE_SCALAR_TAG;
-extern Tag TASK_MOVE_VEC2_TAG;
-extern Tag TASK_MOVE_VEC4_TAG;
-extern Tag TASK_SEQ_TAG;
-extern Tag TASK_GROUP_TAG;
+typedef struct {
+    Task_VTable *vtable;
+    void *data;
+} Task;
 
-Tag task_vtable_register(Arena *a, Task_Funcs funcs);
-void task_vtable_rebuild(Arena *a);
+bool task_update(Task task, Env env);
 
 typedef struct {
     Task *items;

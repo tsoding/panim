@@ -52,9 +52,6 @@ Vector2 grid(size_t row, size_t col)
 static void load_assets(void)
 {
     p->font = LoadFontEx("./assets/fonts/Vollkorn-Regular.ttf", FONT_SIZE, NULL, 0);
-    Arena *a = &p->asset_arena;
-    arena_reset(a);
-    task_vtable_rebuild(a);
 }
 
 static void unload_assets(void)
@@ -62,26 +59,61 @@ static void unload_assets(void)
     UnloadFont(p->font);
 }
 
+// If we want to add another task type, we can add it here (and not in load_assets)
+
+typedef Task (*task_init_t)(Arena *a);
+
+typedef struct {
+    Seq_Data seq;
+} Repeat_Data;
+
+bool repeat_update(Repeat_Data *data, Env env) {
+    return seq_update(&data->seq, env);
+}
+
+Repeat_Data repeat_data(Arena *a, task_init_t init, size_t times) {
+    Seq_Data seq = {0};
+    for (size_t i = 0; i < times; ++i) {
+        arena_da_append(a, &seq.tasks, init(a));
+    }
+
+    return (Repeat_Data) {
+        .seq = seq,
+    };
+}
+
+Task_VTable repeat_vtable = {
+    .update = (task_update_data_t)repeat_update,
+};
+
+Task task_repeat(Arena *a, task_init_t init, size_t times) {
+    Repeat_Data data = repeat_data(a, init, times);
+    return (Task) {
+        .vtable = &repeat_vtable,
+        .data = arena_memdup(a, &data, sizeof(data)),
+    };
+}
+
 Task shuffle_squares(Arena *a, Square *s1, Square *s2, Square *s3)
 {
     Interp_Func func = FUNC_SMOOTHSTEP;
     return task_seq(a,
         task_group(a,
-            task_move_vec2(a, &s1->position, grid(1, 1), 0.25, func),
-            task_move_vec2(a, &s2->position, grid(0, 0), 0.25, func),
-            task_move_vec2(a, &s3->position, grid(0, 1), 0.25, func)),
+            task_move_vec2(a, &s1->position, grid(1, 1), SQUARE_MOVE_DURATION, func),
+            task_move_vec2(a, &s2->position, grid(0, 0), SQUARE_MOVE_DURATION, func),
+            task_move_vec2(a, &s3->position, grid(0, 1), SQUARE_MOVE_DURATION, func)),
         task_group(a,
-            task_move_vec4(a, &s1->color, ColorNormalize(RED), 0.25, func),
-            task_move_vec4(a, &s2->color, ColorNormalize(GREEN), 0.25, func),
-            task_move_vec4(a, &s3->color, ColorNormalize(BLUE), 0.25, func)),
-        task_move_vec2(a, &s1->position, grid(1, 0), 0.25, func),
+            task_move_vec4(a, &s1->color, ColorNormalize(RED), SQUARE_COLOR_DURATION, func),
+            task_move_vec4(a, &s2->color, ColorNormalize(GREEN), SQUARE_COLOR_DURATION, func),
+            task_move_vec4(a, &s3->color, ColorNormalize(BLUE), SQUARE_COLOR_DURATION, func)),
+        task_move_vec2(a, &s1->position, grid(1, 0), SQUARE_MOVE_DURATION, func),
         task_group(a,
-            task_move_vec4(a, &s1->color, ColorNormalize(FOREGROUND_COLOR), 0.25, func),
-            task_move_vec4(a, &s2->color, ColorNormalize(FOREGROUND_COLOR), 0.25, func),
-            task_move_vec4(a, &s3->color, ColorNormalize(FOREGROUND_COLOR), 0.25, func)));
+            task_move_vec4(a, &s1->color, ColorNormalize(FOREGROUND_COLOR), SQUARE_COLOR_DURATION, func),
+            task_move_vec4(a, &s2->color, ColorNormalize(FOREGROUND_COLOR), SQUARE_COLOR_DURATION, func),
+            task_move_vec4(a, &s3->color, ColorNormalize(FOREGROUND_COLOR), SQUARE_COLOR_DURATION, func)));
 }
 
-Task loading(Arena *a)
+Task main_task(Arena *a)
 {
     Square *s1 = &p->squares[0];
     Square *s2 = &p->squares[1];
@@ -92,6 +124,11 @@ Task loading(Arena *a)
         shuffle_squares(a, s3, s1, s2),
         task_wait(a, 1.0f)
     );
+}
+
+Task loading(Arena *a)
+{
+    return task_repeat(a, main_task, 3);
 }
 
 void plug_reset(void)

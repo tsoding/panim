@@ -3,48 +3,9 @@
 
 #include "raymath.h"
 
-Task_VTable task_vtable = {0};
-Tag TASK_MOVE_SCALAR_TAG = 0;
-Tag TASK_MOVE_VEC2_TAG = 0;
-Tag TASK_MOVE_VEC4_TAG = 0;
-Tag TASK_SEQ_TAG = 0;
-Tag TASK_GROUP_TAG = 0;
-Tag TASK_WAIT_TAG = 0;
-
 bool task_update(Task task, Env env)
 {
-    return task_vtable.items[task.tag].update(task.data, env);
-}
-
-Tag task_vtable_register(Arena *a, Task_Funcs funcs)
-{
-    Tag tag = task_vtable.count;
-    arena_da_append(a, &task_vtable, funcs);
-    return tag;
-}
-
-void task_vtable_rebuild(Arena *a)
-{
-    memset(&task_vtable, 0, sizeof(task_vtable));
-
-    TASK_WAIT_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)wait_update,
-    });
-    TASK_MOVE_SCALAR_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)move_scalar_update,
-    });
-    TASK_MOVE_VEC2_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)move_vec2_update,
-    });
-    TASK_MOVE_VEC4_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)move_vec4_update,
-    });
-    TASK_SEQ_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)seq_update,
-    });
-    TASK_GROUP_TAG = task_vtable_register(a, (Task_Funcs) {
-        .update = (task_update_data_t)group_update,
-    });
+    return task.vtable->update(task.data, env);
 }
 
 bool wait_done(Wait_Data *data)
@@ -74,11 +35,15 @@ Wait_Data wait_data(float duration)
     return (Wait_Data) { .duration = duration };
 }
 
+Task_VTable wait_vtable = {
+    .update = (task_update_data_t)wait_update,
+};
+
 Task task_wait(Arena *a, float duration)
 {
     Wait_Data data = wait_data(duration);
     return (Task) {
-        .tag = TASK_WAIT_TAG,
+        .vtable = &wait_vtable,
         .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
@@ -113,11 +78,15 @@ Move_Scalar_Data move_scalar_data(float *value, float target, float duration, In
     };
 }
 
+Task_VTable move_scalar_vtable = {
+    .update = (task_update_data_t)move_scalar_update,
+};
+
 Task task_move_scalar(Arena *a, float *value, float target, float duration, Interp_Func func)
 {
     Move_Scalar_Data data = move_scalar_data(value, target, duration, func);
     return (Task) {
-        .tag = TASK_MOVE_SCALAR_TAG,
+        .vtable = &move_scalar_vtable,
         .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
@@ -151,11 +120,15 @@ Move_Vec2_Data move_vec2_data(Vector2 *value, Vector2 target, float duration, In
     };
 }
 
+Task_VTable move_vec2_vtable = {
+    .update = (task_update_data_t)move_vec2_update,
+};
+
 Task task_move_vec2(Arena *a, Vector2 *value, Vector2 target, float duration, Interp_Func func)
 {
     Move_Vec2_Data data = move_vec2_data(value, target, duration, func);
     return (Task) {
-        .tag = TASK_MOVE_VEC2_TAG,
+        .vtable = &move_vec2_vtable,
         .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
@@ -190,15 +163,18 @@ Move_Vec4_Data move_vec4_data(Vector4 *value, Vector4 target, float duration, In
     };
 }
 
+Task_VTable move_vec4_vtable = {
+    .update = (task_update_data_t)move_vec4_update,
+};
+
 Task task_move_vec4(Arena *a, Vector4 *value, Vector4 target, float duration, Interp_Func func)
 {
     Move_Vec4_Data data = move_vec4_data(value, target, duration, func);
     return (Task) {
-        .tag = TASK_MOVE_VEC4_TAG,
+        .vtable = &move_vec4_vtable,
         .data = arena_memdup(a, &data, sizeof(data)),
     };
 }
-
 bool group_update(Group_Data *data, Env env)
 {
     bool finished = true;
@@ -210,6 +186,10 @@ bool group_update(Group_Data *data, Env env)
     }
     return finished;
 }
+
+Task_VTable group_vtable = {
+    .update = (task_update_data_t)group_update,
+};
 
 Task task_group_(Arena *a, ...)
 {
@@ -226,7 +206,7 @@ Task task_group_(Arena *a, ...)
     va_end(args);
 
     return (Task) {
-        .tag = TASK_GROUP_TAG,
+        .vtable = &group_vtable,
         .data = data,
     };
 }
@@ -243,6 +223,10 @@ bool seq_update(Seq_Data *data, Env env)
     return data->it >= data->tasks.count;
 }
 
+Task_VTable seq_vtable = {
+    .update = (task_update_data_t)seq_update,
+};
+
 Task task_seq_(Arena *a, ...)
 {
     Seq_Data *data = (Seq_Data*)arena_alloc(a, sizeof(*data));
@@ -258,7 +242,7 @@ Task task_seq_(Arena *a, ...)
     va_end(args);
 
     return (Task) {
-        .tag = TASK_SEQ_TAG,
+        .vtable = &seq_vtable,
         .data = data,
     };
 }
